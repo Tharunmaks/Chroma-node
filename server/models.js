@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http.js';
 
-export const MODEL_FAMILIES = new Set(['supershape', 'knot', 'harmonic', 'lissajous', 'superquadric', 'shell', 'surface', 'polyhedron', 'polytope', 'duoprism', 'clifford', 'hypershape', 'pyre']);
+export const MODEL_FAMILIES = new Set(['supershape', 'knot', 'harmonic', 'lissajous', 'superquadric', 'shell', 'surface', 'polyhedron', 'polytope', 'duoprism', 'clifford', 'hypershape', 'twisted', 'spirograph', 'lissajous4', 'pyre']);
 const MAX_PER_USER = 500;
 
 function cleanParams(params) {

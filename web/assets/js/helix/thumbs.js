@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { build, FAMILY } from './catalog.js';
 
-const HUES = { supershape: 0.78, knot: 0.05, harmonic: 0.55, lissajous: 0.92, superquadric: 0.12, shell: 0.09, surface: 0.6, polyhedron: 0.7, polytope: 0.75, duoprism: 0.85, clifford: 0.95, hypershape: 0.65 };
+const HUES = { supershape: 0.78, knot: 0.05, harmonic: 0.55, lissajous: 0.92, superquadric: 0.12, shell: 0.09, surface: 0.6, polyhedron: 0.7, polytope: 0.75, duoprism: 0.85, clifford: 0.95, hypershape: 0.65, twisted: 0.02, spirograph: 0.5, lissajous4: 0.88 };
 
 export class ThumbRenderer {
   constructor(size = 176) {

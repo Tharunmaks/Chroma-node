@@ -103,7 +103,7 @@ function makeMaterial() {
 function applyMaterial() {
   const o = state.object;
   if (!o || o.isPolytope4D) {
-    if (o) { o.colorA.set($('#color').value); o.colorB.set('#8b5cff'); o.update(0); }
+    if (o && state.colorChosen) { o.colorA.set($('#color').value); o.colorB.set('#8b5cff'); o.update(0); }
     return;
   }
   const old = o.material;
@@ -111,7 +111,7 @@ function applyMaterial() {
   if (old !== o.material && old !== pyreMat) old.dispose();
 }
 matSel.addEventListener('change', applyMaterial);
-$('#color').addEventListener('input', applyMaterial);
+$('#color').addEventListener('input', () => { state.colorChosen = true; applyMaterial(); });
 
 // ---------- showing objects ----------
 function show(obj) {
@@ -124,7 +124,7 @@ function show(obj) {
   state.dims = obj.isPolytope4D ? 4 : 3;
   if (obj.isPolytope4D) {
     for (const p of PLANES) obj.speeds[p] = state.speeds ? state.speeds[p] : obj.speeds[p];
-    obj.colorA.set($('#color').value);
+    if (state.colorChosen) obj.colorA.set($('#color').value);
     obj.update(0);
   } else obj.material = makeMaterial();
   engine.add(obj);

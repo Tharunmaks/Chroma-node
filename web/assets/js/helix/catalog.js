@@ -1,4 +1,4 @@
-// Helix model catalog: 100,000+ procedurally generated 3D and 4D models.
+// Helix model catalog: 120,000+ procedurally generated 3D and 4D models.
 // Every model has a stable id ("family/index") and parameters, so it can be
 // opened, tweaked in the studio, saved and exported. Nothing is downloaded:
 // geometry is generated on demand from the parameters.
@@ -357,6 +357,87 @@ const polyhedra = {
   },
 };
 
+
+// Twisted tori: a torus whose cross-section is a k-sided polygon that turns
+// as it travels around the ring (k = 3 with one twist is the triangular
+// Möbius-like "Steinmetz" ring).
+const TWIST_THICK = [0.28, 0.42, 0.56];
+const twistedTorus = {
+  id: 'twisted', name: 'Twisted tori', dims: 3, count: 10 * 40 * TWIST_THICK.length,
+  description: 'Rings with a polygonal cross-section that twists as it goes around: from smooth bands to faceted spirals.',
+  params: [
+    { key: 'sides', label: 'Cross-section sides', min: 2, max: 16, step: 1 },
+    { key: 'twist', label: 'Twists (in steps of 1/sides)', min: 0, max: 80, step: 1 },
+    { key: 'thick', label: 'Thickness', min: 0.08, max: 0.8, step: 0.01 },
+  ],
+  fromIndex: (i) => ({ sides: 3 + (i % 10), twist: Math.floor(i / 10) % 40, thick: TWIST_THICK[Math.floor(i / 400) % TWIST_THICK.length] }),
+  label: (p) => `${p.sides}-gon · ${p.twist} twist${p.twist === 1 ? '' : 's'}`,
+  build(p, q) {
+    const ring = q === 'low' ? 180 : 480;
+    const k = Math.max(2, Math.round(p.sides));
+    const perSide = q === 'low' ? 4 : 10;
+    return gridSurface((u, v) => {
+      const a = u * TAU;
+      // polygon profile: walk the k edges, v in [0,1]
+      const t = v * k;
+      const e = Math.min(k - 1, Math.floor(t));
+      const f = t - e;
+      const rot = a * (p.twist / k);
+      const c0 = (e / k) * TAU + rot;
+      const c1 = ((e + 1) / k) * TAU + rot;
+      const px = (1 - f) * Math.cos(c0) + f * Math.cos(c1);
+      const py = (1 - f) * Math.sin(c0) + f * Math.sin(c1);
+      const r = 1.1 + px * p.thick;
+      return [r * Math.cos(a), py * p.thick, r * Math.sin(a)];
+    }, ring, k * perSide);
+  },
+};
+
+// Spirograph knots: hypotrochoids lifted into 3D with a vertical wave.
+let spiroPairs = null;
+const spiro = () => {
+  if (!spiroPairs) {
+    spiroPairs = [];
+    for (let R = 3; R <= 60; R++) for (let r = 1; r < R; r++) if (gcd(R, r) === 1) spiroPairs.push([R, r]);
+  }
+  return spiroPairs;
+};
+const SPIRO_D = [0.45, 0.8, 1.2];
+const spirograph = {
+  id: 'spirograph', name: 'Spirograph knots', dims: 3, count: spiro().length * SPIRO_D.length,
+  description: 'Hypotrochoids — the curves of the Spirograph toy — lifted into 3D and swept into tubes.',
+  params: [
+    { key: 'R', label: 'Ring teeth R', min: 2, max: 120, step: 1 },
+    { key: 'r', label: 'Wheel teeth r', min: 1, max: 119, step: 1 },
+    { key: 'd', label: 'Pen offset', min: 0.1, max: 2, step: 0.01 },
+    { key: 'lift', label: 'Vertical wave', min: 0, max: 1, step: 0.01 },
+  ],
+  fromIndex(i) {
+    const list = spiro();
+    const [R, r] = list[Math.floor(i / SPIRO_D.length) % list.length];
+    return { R, r, d: SPIRO_D[i % SPIRO_D.length], lift: 0.35 };
+  },
+  label: (p) => `R ${p.R} · r ${p.r} · d ${fmt(p.d)}`,
+  build(p, q) {
+    const R = Math.max(2, p.R);
+    const r = Math.max(1, Math.min(R - 1, p.r));
+    const loops = r / gcd(Math.round(R), Math.round(r));
+    const curve = new (class extends THREE.Curve {
+      getPoint(t, target = new THREE.Vector3()) {
+        const s = t * TAU * loops;
+        const k = (R - r) / r;
+        const d = p.d * r;
+        const x = (R - r) * Math.cos(s) + d * Math.cos(k * s);
+        const z = (R - r) * Math.sin(s) - d * Math.sin(k * s);
+        const y = p.lift * R * 0.35 * Math.sin((R / r) * s * 0.5);
+        return target.set(x / R, y / R, z / R);
+      }
+    })();
+    const n = Math.min(q === 'low' ? 1200 : 4000, 200 + Math.round(loops * (q === 'low' ? 60 : 160)));
+    return new THREE.TubeGeometry(curve, n, 0.02, q === 'low' ? 5 : 8, true);
+  },
+};
+
 // ---------------- 4D families (rendered by Polytope4D) ----------------
 const PHI = (1 + Math.sqrt(5)) / 2;
 function edgesByDistance(verts, tol = 1e-3) {
@@ -535,7 +616,33 @@ const hyperSuper = {
   },
 };
 
-export const FAMILIES = [supershape, torusKnot, harmonics, lissajous, superquadric, shells, surfaces, polyhedra, polytopes, duoprisms, clifford, hyperSuper];
+
+// 4D Lissajous curves: four harmonic oscillators, one per axis.
+const lissajous4 = {
+  id: 'lissajous4', name: '4D Lissajous curves', dims: 4, count: 10 ** 4,
+  description: 'Closed curves from four oscillators (x, y, z, w) with frequencies 1–10, rotating through 4D.',
+  params: [
+    { key: 'a', label: 'Frequency x', min: 1, max: 20, step: 1 },
+    { key: 'b', label: 'Frequency y', min: 1, max: 20, step: 1 },
+    { key: 'c', label: 'Frequency z', min: 1, max: 20, step: 1 },
+    { key: 'd', label: 'Frequency w', min: 1, max: 20, step: 1 },
+  ],
+  fromIndex: (i) => ({ a: 1 + (i % 10), b: 1 + (Math.floor(i / 10) % 10), c: 1 + (Math.floor(i / 100) % 10), d: 1 + (Math.floor(i / 1000) % 10) }),
+  label: (p) => `(${p.a}, ${p.b}, ${p.c}, ${p.d})`,
+  build4(p) {
+    const n = Math.min(4000, 300 + 60 * (p.a + p.b + p.c + p.d));
+    const verts = [];
+    const edges = [];
+    for (let i = 0; i < n; i++) {
+      const t = (i / n) * TAU;
+      verts.push([Math.cos(p.a * t + 0.3), Math.cos(p.b * t + 1.1), Math.cos(p.c * t + 0.5), Math.cos(p.d * t + 2.0)]);
+      edges.push(i, (i + 1) % n);
+    }
+    return { verts, edges, highlight: n };
+  },
+};
+
+export const FAMILIES = [supershape, torusKnot, harmonics, lissajous, superquadric, shells, surfaces, polyhedra, twistedTorus, spirograph, polytopes, duoprisms, clifford, hyperSuper, lissajous4];
 export const FAMILY = Object.fromEntries(FAMILIES.map((f) => [f.id, f]));
 export const TOTAL = FAMILIES.reduce((s, f) => s + f.count, 0);
 export const TOTAL_3D = FAMILIES.filter((f) => f.dims === 3).reduce((s, f) => s + f.count, 0);

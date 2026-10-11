@@ -259,7 +259,7 @@ while n < 100 and dot(z, z) < 4.0:
 
 
       <h3 id="catalog">Model library</h3>
-      <p><code>import { build, get, search, FAMILIES, TOTAL } from 'helix/catalog.js'</code> — 109,630 procedurally generated models with stable ids (<code>family/index</code>), browsable in the <a href="/models">library</a> and editable in the <a href="/studio">studio</a>.</p>
+      <p><code>import { build, get, search, FAMILIES, TOTAL } from 'helix/catalog.js'</code> — 124,130 procedurally generated models with stable ids (<code>family/index</code>), browsable in the <a href="/models">library</a> and editable in the <a href="/studio">studio</a>.</p>
       <table>
         <tr><th>Family</th><th>Models</th><th>What</th></tr>
         <tr><td><code>supershape</code></td><td>16,384</td><td>Gielis superformula in two directions</td></tr>
@@ -268,10 +268,13 @@ while n < 100 and dot(z, z) < 4.0:
         <tr><td><code>lissajous</code></td><td>21,952</td><td>Lissajous knots with frequencies 1–28</td></tr>
         <tr><td><code>superquadric</code></td><td>3,200</td><td>Superellipsoids and supertoroids</td></tr>
         <tr><td><code>shell</code>, <code>surface</code>, <code>polyhedron</code></td><td>1,408 · 12 · 180</td><td>Seashells, classic surfaces (Klein bottle, Boy's surface…), stellated polyhedra</td></tr>
+        <tr><td><code>twisted</code></td><td>1,200</td><td>Tori with a twisting 3–12-gon cross-section</td></tr>
+        <tr><td><code>spirograph</code></td><td>3,300</td><td>Hypotrochoids (Spirograph curves) lifted into 3D</td></tr>
         <tr><td><code>polytope</code> (4D)</td><td>6</td><td>All regular convex 4-polytopes, up to the 120-cell</td></tr>
         <tr><td><code>duoprism</code> (4D)</td><td>6,084</td><td>p-q duoprisms, 3 ≤ p, q ≤ 80</td></tr>
         <tr><td><code>clifford</code> (4D)</td><td>3,600</td><td>Torus knots on the Clifford torus</td></tr>
         <tr><td><code>hypershape</code> (4D)</td><td>8,000</td><td>Superformula on the 3-sphere</td></tr>
+        <tr><td><code>lissajous4</code> (4D)</td><td>10,000</td><td>Four-oscillator Lissajous curves, frequencies 1–10</td></tr>
       </table>
       <pre><code>const m = get('knot/912');                    // { id, family, params, label }
 const mesh = engine.add(build(m.family.id, m.params));

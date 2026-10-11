@@ -1,16 +1,30 @@
+<div align="center">
+
 # ◆ Chroma
 
 **Deploy platform · Helix 3D engine · Pyre GPU language & Torch — in one Node.js package.**
 
-* **Helix** renders a library of **109,630 procedural 3D and 4D models** (supershapes, torus knots,
-  spherical harmonics, Lissajous knots, all six regular 4-polytopes, duoprisms, Clifford torus
-  knots…) with live Pyre materials, a model studio, glTF/OBJ export and saving.
+[![CI](https://github.com/Tharunmaks/Chroma-node/actions/workflows/ci.yml/badge.svg)](https://github.com/Tharunmaks/Chroma-node/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-8b5cff.svg)](LICENSE)
+![Node 22.5+](https://img.shields.io/badge/node-%E2%89%A522.5-3ddc97.svg)
+![Models](https://img.shields.io/badge/3D%20%2B%204D%20models-124%2C130-ff7a1a.svg)
+![Dependencies](https://img.shields.io/badge/runtime%20deps-2-38d6ff.svg)
+
+<img src="docs/screenshots/hero.gif" alt="Chroma's landing page: an iridescent torus knot made with a Pyre shader, a DNA helix and orbiting crystals" width="800">
+
+[**Quick start**](#quick-start) · [What's inside](#whats-inside) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Pyre language](https://github.com/Tharunmaks/Pyre)
+
+</div>
+
+* **Helix** renders a library of **124,130 procedural 3D and 4D models** (supershapes, torus knots,
+  spherical harmonics, Lissajous and Spirograph knots, twisted tori, all six regular 4-polytopes,
+  duoprisms, Clifford torus knots, 4D Lissajous curves…) with live Pyre materials, a model studio, glTF/OBJ export and saving.
 * **[Pyre](https://github.com/Tharunmaks/Pyre)** is GPU code with Python syntax (GLSL/WGSL/JS) plus
   **Pyre Torch**, PyTorch-style tensors, autograd, `nn` and optimizers on the CPU.
 * **The platform** deploys sites to your own server with previews and instant rollback, and gives
   every project a **realtime database**, **JS and Pyre server functions** and **live analytics**.
 
-![Chroma landing page](docs/screenshots/landing.jpg)
+<p align="center"><img src="docs/screenshots/4d-polytope.gif" alt="The 120-cell, a regular 4D polytope with 600 vertices, rotating through the fourth dimension in the Helix studio" width="560"><br><sub>The 120-cell rotating through 4D — one of 27,690 four-dimensional models.</sub></p>
 
 | Playground: edit Pyre, see it on 3D models | Kernels: CPU and WebGPU, verified equal |
 | --- | --- |
@@ -62,7 +76,7 @@ chroma rollback my-site         # instant rollback
 
 * **`/`** — 3D hero (Pyre iridescent torus knot, DNA helix, crystals, starfield, bloom), live shader
   showcase with compiled GLSL/WGSL, model viewer with glTF drag-and-drop, deploy terminal.
-* **`/models`** — the 109,630-model library: search, family and 3D/4D filters, live thumbnails,
+* **`/models`** — the 124,130-model library: search, family and 3D/4D filters, live thumbnails,
   preview with copy-paste code, community gallery.
 * **`/studio`** — edit any model's parameters, write your own in Pyre (`surface(u, v)` or 4D
   `surface4`), materials (PBR or Pyre shaders), 4D rotation controls, save, export `.glb`/`.obj`/`.png`.
@@ -95,6 +109,22 @@ built in rather than bolted on — see [SECURITY.md](SECURITY.md). Highlights:
 * Pyre Functions in fresh worker threads with time, memory, loop and buffer limits; JS functions in a
   fresh permission-restricted child process with no code generation and a string-only bridge
 * database rules per collection, parameterised SQL, analytics without cookies or stored IPs
+
+## Why Chroma?
+
+* **One `npm install`, no services.** Deploys, database, functions and analytics run in a single
+  Node process with SQLite — no cloud accounts, no API keys, no vendor lock-in.
+* **3D-native.** Shaders are a build step, models are a library, and the engine ships with the
+  platform, so a deployed site can `import { Helix } from 'helix'` with nothing to bundle.
+* **One language for GPU, CPU and ML.** Pyre compiles shaders to GLSL/WGSL, runs kernels on the
+  server, and powers a PyTorch-style tensor library.
+* **Secure by default** and covered by tests: sandboxed sites, sandboxed functions, strict CSP.
+
+## Contributing
+
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first
+contributions: a new model family in `web/assets/js/helix/catalog.js`, a Pyre shader for
+`web/assets/js/shaders.js`, a template in `templates/`, or a Pyre Torch layer.
 
 ## Development
 

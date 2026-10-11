@@ -1,7 +1,7 @@
 {
   "name": "chroma-node",
   "version": "1.1.0",
-  "description": "Chroma: deploy platform + Helix 3D engine + Pyre GPU language, in one Node.js package.",
+  "description": "Self-hosted deploy platform with a 3D engine (124k procedural 3D/4D models), realtime database, sandboxed functions and live analytics \u2014 one Node.js package.",
   "type": "module",
   "main": "./server/index.js",
   "bin": {
@@ -23,5 +23,22 @@
     "type": "git",
     "url": "git+https://github.com/Tharunmaks/Chroma-node.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "3d",
+    "4d",
+    "analytics",
+    "deployment",
+    "paas",
+    "procedural-generation",
+    "realtime-database",
+    "self-hosted",
+    "serverless",
+    "shaders",
+    "sqlite",
+    "threejs",
+    "webgl",
+    "webgpu"
+  ],
+  "homepage": "https://github.com/Tharunmaks/Chroma-node#readme"
 }
