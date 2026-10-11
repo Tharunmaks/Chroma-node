@@ -233,6 +233,7 @@ export class Helix {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.opts.maxPixelRatio));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.info.autoReset = false; // count every pass of a frame together
     this.scene = new THREE.Scene();
     if (this.opts.background) this.scene.background = new THREE.Color(this.opts.background);
     this.camera = new THREE.PerspectiveCamera(this.opts.fov, 1, 0.05, 200);
@@ -357,6 +358,7 @@ export class Helix {
   onFrame(cb) { this.frameCallbacks.add(cb); return () => this.frameCallbacks.delete(cb); }
 
   renderFrame() {
+    this.renderer.info.reset();
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this.time += dt * this.timeScale;
     this.pointer.lerp(this.pointerTarget, 1 - Math.pow(0.001, dt));

@@ -1,0 +1,19 @@
+services:
+  chroma:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # set CHROMA_HTTPS=1 and TRUST_PROXY=1 when running behind a TLS reverse proxy
+      CHROMA_HTTPS: "0"
+      ALLOW_SIGNUP: "1"
+    volumes:
+      - chroma-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+volumes:
+  chroma-data:

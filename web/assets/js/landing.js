@@ -53,7 +53,7 @@ function heroScene() {
   const layout = () => {
     const wide = window.innerWidth > 980;
     world.position.set(wide ? 2.6 : 0, wide ? 0 : 1.6, 0);
-    canvas.style.opacity = wide ? '1' : '0.75';
+    canvas.style.opacity = wide ? '1' : '0.55';
   };
   layout();
   window.addEventListener('resize', layout);

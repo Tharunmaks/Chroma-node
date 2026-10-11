@@ -1,1 +1,223 @@
-<!doctype html><html lang="en"><head><!--#head--><title>Docs</title></head><body><!--#nav--><main id="main"></main><!--#footer--></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Docs · Chroma</title>
+<meta name="description" content="Chroma documentation: getting started, CLI, deployments, Pyre language reference, Helix engine API, REST API, security and self-hosting.">
+<script type="module" src="/assets/js/docs.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main" class="app">
+  <div class="wrap docs">
+    <nav aria-label="Documentation">
+      <b>Start</b>
+      <a href="#start">Getting started</a>
+      <a href="#cli">CLI</a>
+      <b>Platform</b>
+      <a href="#deployments">Deployments</a>
+      <a href="#functions">Pyre Functions</a>
+      <a href="#api">REST API</a>
+      <b>Pyre language</b>
+      <a href="#pyre">Overview</a>
+      <a href="#pyre-types">Types &amp; values</a>
+      <a href="#pyre-flow">Control flow</a>
+      <a href="#pyre-entry">Entry points</a>
+      <a href="#pyre-builtins">Built-ins &amp; stdlib</a>
+      <b>Helix engine</b>
+      <a href="#helix">Helix API</a>
+      <b>Operations</b>
+      <a href="#security">Security model</a>
+      <a href="#selfhost">Self-hosting</a>
+    </nav>
+    <article>
+      <h2 id="start">Getting started</h2>
+      <p>Chroma is one Node.js package (Node 20+) containing the platform server, the <code>chroma</code> CLI, the Helix 3D engine and the Pyre compiler.</p>
+      <pre><code>npm i -g github:Tharunmaks/Chroma-node
+
+chroma server                 # start the platform on http://127.0.0.1:3000
+# open http://127.0.0.1:3000/dashboard and create an account
+
+chroma init my-site           # Helix starter: a 3D page, a Pyre shader and a Pyre Function
+cd my-site
+chroma dev                    # http://localhost:5173 — live reload, Pyre compiled on the fly
+chroma login                  # stores an API token in ~/.chroma/config.json (mode 600)
+chroma deploy                 # → http://127.0.0.1:3000/p/my-site/</code></pre>
+      <p>Prefer clicking? In the <a href="/dashboard">dashboard</a>, <em>New project → Helix starter</em> deploys a live 3D site in one step, and you can drag a folder onto a project to deploy it. The <a href="/playground">playground</a> deploys a shader with one button.</p>
+
+      <h2 id="cli">CLI</h2>
+      <table>
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>chroma init [dir] [--template helix-starter|static]</code></td><td>Scaffold a site with a <code>chroma.json</code>.</td></tr>
+        <tr><td><code>chroma dev [dir] [--port 5173]</code></td><td>Serve a folder like a deployment: clean URLs, generated <code>.glsl</code>/<code>.wgsl</code>, local functions at <code>/api/fn/dev/&lt;name&gt;</code>, live reload and a compile-error overlay.</td></tr>
+        <tr><td><code>chroma build [dir] [--out dist]</code></td><td>Compile every <code>.pyre</code> file and write a static folder you can host anywhere.</td></tr>
+        <tr><td><code>chroma login [--server URL] [--token T]</code></td><td>Exchange your password for an API token, or save an existing token (CI).</td></tr>
+        <tr><td><code>chroma deploy [dir] [--project name] [--preview]</code></td><td>Upload, build and publish. The project comes from <code>--project</code>, then <code>chroma.json</code>, then the folder name, and is created if missing.</td></tr>
+        <tr><td><code>chroma projects</code> · <code>chroma deployments &lt;p&gt;</code></td><td>List projects / a project's deployments (● marks production).</td></tr>
+        <tr><td><code>chroma promote &lt;p&gt; &lt;id&gt;</code> · <code>chroma rollback &lt;p&gt;</code></td><td>Point production at any READY deployment / the previous one.</td></tr>
+        <tr><td><code>chroma run &lt;p&gt; &lt;fn&gt; -u a=2 -b x=1,2,3</code></td><td>Call a Pyre Function.</td></tr>
+        <tr><td><code>chroma pyre …</code></td><td>The Pyre compiler CLI: <code>compile</code>, <code>check</code>, <code>render</code>, <code>run</code>.</td></tr>
+        <tr><td><code>chroma server [--port] [--host]</code></td><td>Run the platform.</td></tr>
+      </table>
+      <p>In CI, set <code>CHROMA_SERVER</code> and <code>CHROMA_TOKEN</code> instead of running <code>chroma login</code>.</p>
+
+      <h2 id="deployments">Deployments</h2>
+      <p>A deployment is an immutable snapshot of your files. Files are stored once by SHA-256, so redeploys only store what changed. Every deployment has a preview URL; a project's production URL points at one of them.</p>
+      <table>
+        <tr><th>URL</th><th>Serves</th></tr>
+        <tr><td><code>/p/&lt;project&gt;/</code></td><td>Production</td></tr>
+        <tr><td><code>/d/&lt;deployment-id&gt;/</code></td><td>One specific deployment (preview)</td></tr>
+        <tr><td><code>https://&lt;project&gt;.&lt;CHROMA_DOMAIN&gt;/</code></td><td>Production, when the server runs with <code>CHROMA_DOMAIN</code></td></tr>
+      </table>
+      <h3>Routing</h3>
+      <p><code>/about</code> serves <code>about.html</code> (clean URLs), folders serve <code>index.html</code>, and a missing file serves your <code>404.html</code> with status 404. Configure with <code>chroma.json</code>:</p>
+      <pre><code>{ "name": "my-site", "cleanUrls": true, "spa": false }</code></pre>
+      <p><code>spa: true</code> serves <code>index.html</code> for unknown paths without a file extension.</p>
+      <h3>The Pyre build step</h3>
+      <p>Every <code>.pyre</code> file is compiled. <code>shaders/lava.pyre</code> produces <code>shaders/lava.glsl</code>, <code>shaders/lava.wgsl</code> and <code>shaders/lava.pyre.json</code> (metadata: uniforms, buffers, WGSL uniform layout). A compile error marks the deployment <strong>ERROR</strong> and production is left untouched — read the build log in the dashboard or the CLI output.</p>
+      <h3>Limits</h3>
+      <p>2,000 files, 10 MB per file, 50 MB per deployment, 50 projects per account; the newest 30 deployments per project are kept (production is never pruned). Hidden files and <code>node_modules</code> are skipped; add patterns to <code>.chromaignore</code>.</p>
+
+      <h2 id="functions">Pyre Functions</h2>
+      <p>A <code>@kernel</code> inside <code>api/</code> becomes an HTTP endpoint of the production deployment: <code>api/saxpy.pyre</code> → <code>POST /api/fn/&lt;project&gt;/saxpy</code>; nested folders work too (<code>api/math/fft.pyre</code> → <code>…/math/fft</code>).</p>
+      <pre><code class="lang-pyre"># api/saxpy.pyre
+uniform a: float
+buffer x: [float]
+buffer y: [float]
+
+@kernel(64)
+fn saxpy(id: int):
+    y[id] = a * x[id] + y[id]</code></pre>
+      <pre><code>POST /api/fn/my-site/saxpy
+{ "uniforms": { "a": 2 }, "buffers": { "x": [1, 2, 3], "y": [10, 10, 10] }, "count": 3 }
+
+200 { "buffers": { "x": [1, 2, 3], "y": [12, 14, 16] }, "ms": 0.4 }</code></pre>
+      <p>Buffers are arrays of numbers or a length (zero-filled). <code>count</code> (threads) defaults to the longest buffer. Each call runs in a fresh worker thread with a 3 s timeout, a 96 MB heap, a 20M-iteration loop budget and at most 1M buffer elements. CORS is open so deployed pages can call their functions.</p>
+
+      <h2 id="api">REST API</h2>
+      <p>JSON in, JSON out. Authenticate with the session cookie (browsers; writes also need the <code>X-CSRF-Token</code> from <code>/api/me</code>) or <code>Authorization: Bearer chr_…</code>.</p>
+      <table>
+        <tr><th>Method &amp; path</th><th>Description</th></tr>
+        <tr><td><code>GET /api/health</code></td><td>Server and Pyre versions</td></tr>
+        <tr><td><code>GET /api/me</code></td><td>Current user and CSRF token</td></tr>
+        <tr><td><code>POST /api/auth/signup</code> · <code>/login</code> · <code>/logout</code></td><td><code>{ username, password }</code>; sets the session cookie</td></tr>
+        <tr><td><code>POST /api/auth/token</code></td><td><code>{ username, password, name }</code> → <code>{ token }</code> for the CLI</td></tr>
+        <tr><td><code>POST /api/auth/password</code></td><td><code>{ current, next }</code>; signs out other sessions</td></tr>
+        <tr><td><code>GET/POST /api/tokens</code> · <code>DELETE /api/tokens/:id</code></td><td>List, create and revoke API tokens</td></tr>
+        <tr><td><code>GET/POST /api/projects</code></td><td>List / create <code>{ name }</code></td></tr>
+        <tr><td><code>GET/DELETE /api/projects/:name</code></td><td>Project with deployments / delete everything</td></tr>
+        <tr><td><code>POST /api/projects/:name/deployments</code></td><td><code>{ files: [{ path, data (base64) }], target: "production"|"preview" }</code></td></tr>
+        <tr><td><code>POST /api/projects/:name/templates/:id</code></td><td>Deploy a built-in template</td></tr>
+        <tr><td><code>POST /api/projects/:name/promote</code></td><td><code>{ deploymentId }</code> — promote / roll back</td></tr>
+        <tr><td><code>GET/DELETE /api/deployments/:id</code></td><td>Build log and file list / delete (not the production one)</td></tr>
+        <tr><td><code>GET /api/audit</code></td><td>Your last 100 security events</td></tr>
+        <tr><td><code>POST /api/compile</code></td><td><code>{ source }</code> → GLSL, WGSL, JS and metadata (public, rate limited)</td></tr>
+        <tr><td><code>POST /api/fn/:project/:name</code></td><td>Run a Pyre Function (public, rate limited)</td></tr>
+      </table>
+
+      <h2 id="pyre">Pyre language</h2>
+      <p>Pyre is a statically typed GPU language with Python-style syntax. A file compiles to <strong>GLSL ES 3.00</strong> (WebGL2), <strong>WGSL</strong> (WebGPU) and <strong>JavaScript</strong> (CPU); Pyre's <code>npm run gpu-check</code> renders every example on real WebGL2 and WebGPU drivers and compares the result with the CPU backend pixel by pixel.</p>
+      <pre><code class="lang-pyre"># A complete fragment shader
+uniform time: float
+const SPEED = 2.0
+
+fn wave(p: vec2) -> float:
+    return sin(p.x * 10.0 + time * SPEED) * 0.5 + 0.5
+
+@fragment
+fn main(uv: vec2) -> vec4:
+    var col = vec3(uv, 0.5) * wave(uv)
+    col.r += 0.1 if uv.y > 0.5 else 0.0
+    return vec4(col, 1)</code></pre>
+
+      <h3 id="pyre-types">Types &amp; values</h3>
+      <table>
+        <tr><th>Type</th><th>Notes</th></tr>
+        <tr><td><code>bool</code>, <code>int</code>, <code>float</code></td><td>32-bit. Integer maths wraps like the GPU; <code>/</code> truncates.</td></tr>
+        <tr><td><code>vec2</code> <code>vec3</code> <code>vec4</code></td><td>Float vectors. Swizzle with <code>xyzw</code> or <code>rgba</code>: <code>v.zyx</code>, <code>c.rgb</code>. Assign one component: <code>v.x = 1.0</code>.</td></tr>
+        <tr><td><code>mat2</code> <code>mat3</code> <code>mat4</code></td><td>Column-major. <code>m * v</code>, <code>v * m</code>, <code>m * m</code>, <code>m[i]</code> is a column.</td></tr>
+        <tr><td><code>[float]</code>, <code>[int]</code></td><td>Buffers (kernels only): <code>buffer data: [float]</code>.</td></tr>
+      </table>
+      <p>Declarations: <code>uniform name: type</code>, <code>buffer name: [float]</code>, <code>const NAME = expr</code>, <code>let</code> (immutable) and <code>var</code> (mutable) with inferred or annotated types (<code>let r: float = 1</code>). Ints are promoted to floats wherever a float is expected, so <code>vec3(1, 0, 0)</code> just works. Operators: <code>+ - * / % **</code>, comparisons, <code>and or not</code>, int bitwise <code>&amp; | ^ &lt;&lt; &gt;&gt;</code>, compound assignment, and Python's <code>a if cond else b</code>.</p>
+
+      <h3 id="pyre-flow">Control flow</h3>
+      <pre><code class="lang-pyre">for i in range(8):            # also range(start, end) and range(start, end, step)
+    if i == 2:
+        continue
+    elif i > 6:
+        break
+var n = 0
+while n < 100 and dot(z, z) < 4.0:
+    n += 1</code></pre>
+      <p>Functions are typed (<code>fn f(x: float, y: vec2) -&gt; vec3:</code>), may be declared in any order, cannot recurse (GPUs have no call stack) and must return on every path. The compiler reports the line and column of every mistake and suggests fixes for typos.</p>
+
+      <h3 id="pyre-entry">Entry points</h3>
+      <table>
+        <tr><th>Decorator</th><th>Signature</th><th>Targets</th></tr>
+        <tr><td><code>@fragment</code></td><td><code>fn main(uv: vec2, frag: vec2, normal: vec3, position: vec3) -&gt; vec4</code> — take any subset of the inputs</td><td>GLSL, WGSL, JS</td></tr>
+        <tr><td><code>@kernel(n)</code></td><td><code>fn k(id: int)</code>; <code>n</code> is the workgroup size (default 64)</td><td>WGSL, JS</td></tr>
+      </table>
+      <p><code>uv</code> is 0..1 (origin bottom-left), <code>normal</code> is the view-space normal (<code>normal.z</code> ≈ 1 facing the camera), <code>position</code> the object-space position, <code>frag</code> the pixel coordinate (its y axis follows each platform's convention). In Helix, <code>time</code>, <code>resolution</code> and <code>mouse</code> uniforms are fed automatically.</p>
+
+      <h3 id="pyre-builtins">Built-ins &amp; standard library</h3>
+      <p><code>sin cos tan asin acos atan atan2 sinh cosh tanh exp log exp2 log2 sqrt inversesqrt pow abs sign floor ceil fract round trunc mod min max clamp saturate mix step smoothstep length distance dot cross normalize reflect refract radians degrees</code>, constructors <code>float int bool vecN matN</code>, constants <code>PI TAU E</code>. Scalars broadcast to vectors where it makes sense (<code>clamp(v, 0.0, 1.0)</code>).</p>
+      <p>The standard library is written in Pyre, linked only when used, and can be overridden by defining a function with the same name:</p>
+      <table>
+        <tr><td><code>ihash(n)</code>, <code>hash21(p)</code>, <code>hash22(p)</code>, <code>hash31(p)</code></td><td>Integer hashing — bit-identical on every GPU and the CPU</td></tr>
+        <tr><td><code>noise(p)</code>, <code>fbm(p)</code></td><td>Value noise and 5-octave fractal noise</td></tr>
+        <tr><td><code>rotate(a) -&gt; mat2</code></td><td>2D rotation matrix</td></tr>
+        <tr><td><code>palette(t, a, b, c, d)</code>, <code>hsv2rgb(c)</code></td><td>Cosine palettes, HSV colour</td></tr>
+        <tr><td><code>sdSphere sdBox sdTorus smin</code></td><td>Signed distance functions for raymarching</td></tr>
+      </table>
+
+      <h2 id="helix">Helix engine API</h2>
+      <p>Import from <code>'helix'</code> (pages on Chroma and deployed sites get an import map for <code>three</code>, <code>three/addons/</code>, <code>pyre</code> and <code>helix</code>).</p>
+      <table>
+        <tr><th>API</th><th>Description</th></tr>
+        <tr><td><code>new Helix(canvas, opts)</code></td><td><code>{ controls = true, bloom = false, autoRotate = false, zoom = true, fov = 45, camera = [0, 0, 6], maxPixelRatio = 2, environment = true, background }</code></td></tr>
+        <tr><td><code>engine.material(source, { uniforms })</code></td><td>A live <code>PyreMaterial</code>; <code>.setSource(src)</code> hot-swaps and returns <code>{ ok, message }</code>, <code>.set(name, value)</code> sets uniforms</td></tr>
+        <tr><td><code>engine.mesh(geometry | 'name', material)</code></td><td>Make a mesh; geometries from <code>Models</code>: <code>torusKnot sphere icosahedron box torus plane crystal helix</code></td></tr>
+        <tr><td><code>await engine.load(url | File, { fit, material })</code></td><td>Load glTF/GLB, centred and scaled to <code>fit</code> units</td></tr>
+        <tr><td><code>engine.add(...)</code> / <code>engine.remove(...)</code></td><td>Scene graph helpers (<code>engine.scene</code>, <code>engine.camera</code> are plain Three.js)</td></tr>
+        <tr><td><code>engine.onFrame((t, dt) =&gt; …)</code></td><td>Per-frame callback; returns an unsubscribe function</td></tr>
+        <tr><td><code>engine.enableBloom(opts)</code> / <code>disableBloom()</code></td><td>Post-processing; Pyre colours stay consistent with and without it</td></tr>
+        <tr><td><code>engine.start()</code> / <code>stop()</code> / <code>dispose()</code></td><td>Rendering pauses automatically while the canvas is off-screen or the tab is hidden</td></tr>
+        <tr><td><code>engine.pointer</code>, <code>engine.mouse</code></td><td>Smoothed pointer (−1..1) and the 0..1 mouse fed to shaders</td></tr>
+        <tr><td><code>createDNA(opts)</code>, <code>createStarfield(opts)</code></td><td>Ready-made instanced scenes</td></tr>
+        <tr><td><code>engine.screenshot()</code></td><td>PNG data URL of the current frame</td></tr>
+      </table>
+      <p>Helix respects <code>prefers-reduced-motion</code> (slower time, no auto-rotate) and caps the pixel ratio for battery life.</p>
+
+      <h2 id="security">Security model</h2>
+      <ul>
+        <li><strong>Accounts.</strong> Passwords are hashed with scrypt (N=2<sup>15</sup>, r=8, p=1, random salt) and compared in constant time. Unknown users cost the same time as wrong passwords. Five failures lock an account for 15 minutes; auth endpoints are also rate limited per IP.</li>
+        <li><strong>Sessions.</strong> 256-bit random tokens in <code>HttpOnly; SameSite=Strict</code> cookies (<code>Secure</code> with <code>CHROMA_HTTPS=1</code>), 7-day expiry. Only SHA-256 hashes are stored. Every cookie-authenticated write needs the session's CSRF token; login and signup reject foreign <code>Origin</code>s. Changing your password signs out other sessions.</li>
+        <li><strong>API tokens.</strong> Shown once, stored as hashes, revocable, with last-used tracking.</li>
+        <li><strong>Platform pages.</strong> Strict CSP (<code>script-src 'self'</code> plus the hash of the import map, no inline styles, no eval), <code>frame-ancestors 'none'</code>, COOP, CORP, nosniff, Referrer-Policy and Permissions-Policy. The only script allowed to evaluate generated code is the Pyre CPU worker, which has its own CSP with no network access.</li>
+        <li><strong>Deployed sites.</strong> Every file is served with <code>Content-Security-Policy: sandbox …</code>, so deployed pages (and uploaded SVGs) run in an opaque origin: they cannot read platform cookies, call the authenticated API, or script the dashboard, even on the same host.</li>
+        <li><strong>Uploads.</strong> Paths are validated (no traversal, absolute paths, backslashes, control characters or hidden files), sizes are capped, JSON bodies are size-limited, and storage is content-addressed.</li>
+        <li><strong>Functions.</strong> Pyre has no strings, I/O or recursion, and its JS output can only touch its own values. Kernels run in fresh worker threads with time, memory, loop and buffer limits.</li>
+        <li><strong>Audit log.</strong> Sign-ins, failures, lockouts, tokens, projects and deployments are recorded per account (<em>Dashboard → Security</em>).</li>
+      </ul>
+
+      <h2 id="selfhost">Self-hosting</h2>
+      <pre><code>git clone https://github.com/Tharunmaks/Chroma-node && cd Chroma-node
+npm ci
+PORT=3000 HOST=0.0.0.0 DATA_DIR=/var/lib/chroma npm start
+# or: docker compose up -d</code></pre>
+      <table>
+        <tr><th>Variable</th><th>Meaning</th></tr>
+        <tr><td><code>PORT</code>, <code>HOST</code></td><td>Listen address (default <code>3000</code>, <code>127.0.0.1</code>)</td></tr>
+        <tr><td><code>DATA_DIR</code></td><td>Database (<code>db.json</code>, mode 600) and content-addressed files</td></tr>
+        <tr><td><code>CHROMA_HTTPS=1</code></td><td>Behind TLS: <code>Secure</code> cookies, HSTS, <code>upgrade-insecure-requests</code></td></tr>
+        <tr><td><code>TRUST_PROXY=1</code></td><td>Use <code>X-Forwarded-For</code> for rate limits and the audit log (only behind a proxy you control)</td></tr>
+        <tr><td><code>CHROMA_DOMAIN=example.com</code></td><td>Also serve projects at <code>&lt;project&gt;.example.com</code> (wildcard DNS + certificate)</td></tr>
+        <tr><td><code>ALLOW_SIGNUP=0</code></td><td>Disable open registration</td></tr>
+      </table>
+      <p>Put Chroma behind a TLS-terminating reverse proxy (Caddy, nginx) and back up <code>DATA_DIR</code>.</p>
+    </article>
+  </div>
+</main>
+<!--#footer-->
+</body>
+</html>

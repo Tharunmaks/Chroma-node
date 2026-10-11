@@ -1,1 +1,77 @@
-<!doctype html><html lang="en"><head><!--#head--><title>Docs</title></head><body><!--#nav--><main id="main"></main><!--#footer--></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Helix engine · Chroma</title>
+<meta name="description" content="Helix is Chroma's 3D engine: Three.js with live Pyre materials, glTF loading, bloom and smart rendering.">
+<script type="module" src="/assets/js/engine.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main" class="app">
+  <div class="wrap">
+    <p class="eyebrow">Helix engine</p>
+    <h1 class="title">The 3D studio. <span class="grad">Materials are Pyre.</span></h1>
+    <p class="lead">Everything below runs on Helix in your browser. Pick a scene, swap materials (each one is a Pyre program compiled to GLSL on the fly), or drop in your own <code>.glb</code> model.</p>
+    <div class="studio">
+      <div class="viewport" id="studio">
+        <canvas aria-label="Helix studio — drag to orbit, scroll to zoom"></canvas>
+        <span class="badge-live" id="studio-stats">Helix · WebGL2</span>
+        <div class="hud" id="scenes" role="group" aria-label="Scene"></div>
+      </div>
+      <aside class="panel studio-side">
+        <div class="panel-head"><h3>Inspector</h3></div>
+        <div class="panel-body form">
+          <label>Material<select id="mat"></select></label>
+          <label>Model<select id="geo">
+            <option value="torusKnot">Torus knot</option><option value="sphere">Sphere</option><option value="helix">Helix</option>
+            <option value="torus">Torus</option><option value="icosahedron">Icosahedron</option><option value="box">Box</option><option value="crystal">Crystal</option>
+          </select></label>
+          <label>Bloom strength <input type="range" id="bloom" min="0" max="2" step="0.05" value="0.6"></label>
+          <label>Rotation speed <input type="range" id="speed" min="0" max="3" step="0.05" value="1"></label>
+          <div class="row"><button class="btn small" id="glb">Load .glb…</button><button class="btn small" id="shot">Screenshot</button></div>
+          <p class="small dim">Tip: open the material in the <a href="/playground" id="edit-link">playground</a> to edit its Pyre source.</p>
+        </div>
+      </aside>
+    </div>
+
+    <section class="section tight">
+      <h2 class="title">API at a glance</h2>
+      <div class="grid cols-2">
+        <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>Set up</div>
+<pre class="src"><span class="k">import</span> { Helix, Models, createDNA } <span class="k">from</span> <span class="s">'helix'</span>;
+
+<span class="k">const</span> engine = <span class="k">new</span> <span class="f">Helix</span>(canvas, {
+  bloom: <span class="k">true</span>,        <span class="c">// or { strength, radius, threshold }</span>
+  autoRotate: <span class="k">true</span>,   <span class="c">// orbit controls are on by default</span>
+  camera: [<span class="n">0</span>, <span class="n">0</span>, <span class="n">6</span>],
+});
+engine.<span class="f">add</span>(<span class="f">createDNA</span>());
+engine.<span class="f">start</span>();   <span class="c">// renders only while visible</span></pre></div>
+        <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>Pyre materials</div>
+<pre class="src"><span class="k">const</span> mat = engine.<span class="f">material</span>(pyreSource, {
+  uniforms: { tint: [<span class="n">1</span>, <span class="n">0.4</span>, <span class="n">0.2</span>] },
+});
+<span class="c">// time, resolution and mouse are fed automatically</span>
+mat.<span class="f">set</span>(<span class="s">'glow'</span>, <span class="n">2.0</span>);
+<span class="k">const</span> r = mat.<span class="f">setSource</span>(newSource);   <span class="c">// hot-swap</span>
+<span class="k">if</span> (!r.ok) console.<span class="f">log</span>(r.message);    <span class="c">// old shader keeps running</span></pre></div>
+        <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>Models</div>
+<pre class="src"><span class="k">const</span> knot = engine.<span class="f">mesh</span>(Models.<span class="f">torusKnot</span>(), mat);
+<span class="k">const</span> robot = <span class="k">await</span> engine.<span class="f">load</span>(<span class="s">'robot.glb'</span>, { fit: <span class="n">3</span> });
+<span class="k">const</span> mine = <span class="k">await</span> engine.<span class="f">load</span>(fileFromDragAndDrop);
+engine.<span class="f">add</span>(knot, robot);</pre></div>
+        <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>Animation</div>
+<pre class="src">engine.<span class="f">onFrame</span>((t, dt) =&gt; {
+  knot.rotation.y = t * <span class="n">0.4</span>;
+  knot.position.x = engine.pointer.x;  <span class="c">// smoothed -1..1</span>
+});
+engine.<span class="f">enableBloom</span>({ strength: <span class="n">0.8</span> });
+<span class="k">const</span> png = engine.<span class="f">screenshot</span>();</pre></div>
+      </div>
+    </section>
+  </div>
+</main>
+<!--#footer-->
+</body>
+</html>

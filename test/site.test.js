@@ -67,3 +67,16 @@ test('request bodies are size-limited and must be JSON objects', async () => {
   const arr = await fetch(`${srv.url}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '[1,2]' });
   assert.equal(arr.status, 400);
 });
+
+test('every shader and kernel shipped with the site and templates compiles', async () => {
+  const { compileAll } = await import('pyre-lang');
+  const { SHADERS, KERNELS } = await import('../web/assets/js/shaders.js');
+  for (const [name, s] of Object.entries({ ...SHADERS, ...KERNELS })) {
+    const r = compileAll(s.source, { filename: name });
+    assert.ok(r.meta.entry === 'fragment' ? r.glsl && r.wgsl : r.wgsl, name);
+  }
+  const fs = await import('node:fs');
+  for (const f of ['templates/helix-starter/shaders/lava.pyre', 'templates/helix-starter/api/saxpy.pyre']) {
+    assert.ok(compileAll(fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')).meta.entry, f);
+  }
+});
