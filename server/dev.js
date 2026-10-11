@@ -11,6 +11,10 @@ import { serveTree, sendBuffer } from './app.js';
 import { deploymentHeaders } from './security.js';
 import { sendJSON, readJSON, HttpError } from './http.js';
 import { validateInput, runFunction } from './functions.js';
+import { runJsFunction, toHttp } from './js-functions.js';
+import { openDatabase } from './sqlite.js';
+import { ProjectDatabase } from './database.js';
+import { readBody } from './http.js';
 
 const CLIENT = `<script>(() => {
   const es = new EventSource('/__chroma/events');
@@ -25,6 +29,10 @@ const CLIENT = `<script>(() => {
 export function startDevServer({ dir, port = 5173, host = '127.0.0.1', log = true } = {}) {
   const root = path.resolve(dir);
   const clients = new Set();
+  // an in-memory database: everything is allowed locally, nothing is persisted
+  const sql = openDatabase(null);
+  const pdb = new ProjectDatabase(sql);
+  const PID = 'dev';
   const inRoot = (rel) => {
     const abs = path.resolve(root, rel);
     return abs === root || abs.startsWith(root + path.sep) ? abs : null;
@@ -58,12 +66,60 @@ export function startDevServer({ dir, port = 5173, host = '127.0.0.1', log = tru
         req.on('close', () => clients.delete(res));
         return;
       }
+      if (/^\/api\/(fn|db|a)\//.test(pathname) && req.method === 'OPTIONS') {
+        res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' });
+        return res.end();
+      }
+      if (/^\/api\/a\//.test(pathname)) return sendJSON(res, 202, { ok: true }, { 'Access-Control-Allow-Origin': '*' });
+      const dbm = /^\/api\/db\/[^/]+\/([^/]+)(?:\/([^/]+))?$/.exec(pathname);
+      if (dbm) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        const [, col, id] = dbm;
+        pdb.collection(PID, col, { create: true });
+        if (req.method === 'GET' && id === 'stream') {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' });
+          const on = (c) => res.write(`event: ${c.type}\ndata: ${JSON.stringify(c)}\n\n`);
+          pdb.on(`${PID}/${col}`, on);
+          req.on('close', () => pdb.off(`${PID}/${col}`, on));
+          return;
+        }
+        const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readJSON(req, 64 * 1024) : null;
+        if (req.method === 'GET') return sendJSON(res, 200, id ? { doc: pdb.get(PID, col, id) } : pdb.query(PID, col, { where: url.searchParams.getAll('where'), order: url.searchParams.get('order'), limit: url.searchParams.get('limit'), offset: url.searchParams.get('offset') }));
+        if (req.method === 'POST' && !id) return sendJSON(res, 201, { doc: pdb.add(PID, col, body) });
+        if ((req.method === 'PUT' || req.method === 'PATCH') && id) return sendJSON(res, 200, { doc: pdb.set(PID, col, id, body, { merge: req.method === 'PATCH' }) });
+        if (req.method === 'DELETE' && id) { pdb.remove(PID, col, id); return sendJSON(res, 200, { ok: true }); }
+        throw new HttpError(405, 'method not allowed');
+      }
       const fn = /^\/api\/fn\/[^/]+\/(.+)$/.exec(pathname);
       if (fn) {
         res.setHeader('Access-Control-Allow-Origin', '*');
-        if (req.method === 'OPTIONS') {
-          res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
-          return res.end();
+        const jsRel = `api/${fn[1]}.js`;
+        if (isFile(jsRel)) {
+          let body = null;
+          if (req.method !== 'GET' && req.method !== 'DELETE') {
+            const text = (await readBody(req, 1024 * 1024)).toString('utf8');
+            body = String(req.headers['content-type'] || '').startsWith('application/json') && text ? JSON.parse(text) : text;
+          }
+          const ops = {
+            list: ([c, q = {}]) => { pdb.collection(PID, c, { create: true }); return pdb.query(PID, c, q); },
+            get: ([c, i]) => { pdb.collection(PID, c, { create: true }); return pdb.get(PID, c, i); },
+            add: ([c, d]) => { pdb.collection(PID, c, { create: true }); return pdb.add(PID, c, d); },
+            set: ([c, i, d]) => { pdb.collection(PID, c, { create: true }); return pdb.set(PID, c, i, d); },
+            update: ([c, i, d]) => { pdb.collection(PID, c, { create: true }); return pdb.set(PID, c, i, d, { merge: true }); },
+            remove: ([c, i]) => { pdb.collection(PID, c, { create: true }); pdb.remove(PID, c, i); return true; },
+          };
+          try {
+            const { response, logs } = await runJsFunction(fs.readFileSync(inRoot(jsRel), 'utf8'), {
+              method: req.method, path: `/${fn[1]}`, query: Object.fromEntries(url.searchParams), headers: { 'content-type': String(req.headers['content-type'] || '') }, body, file: jsRel,
+            }, { db: async (op, args) => ops[op](args) });
+            if (log) for (const l of logs) console.log(`  [${jsRel}] ${l}`);
+            const out = toHttp(response);
+            res.writeHead(out.status, { ...out.headers, 'Access-Control-Allow-Origin': '*' });
+            return res.end(out.body);
+          } catch (err) {
+            if (log && err.detail) console.log(`  [${jsRel}] ${err.detail}`);
+            return sendJSON(res, err.status || 500, { error: err.message, detail: err.detail, logs: err.logs });
+          }
         }
         const rel = `api/${fn[1]}.pyre`;
         if (req.method !== 'POST' || !isFile(rel)) throw new HttpError(404, 'function not found');
@@ -143,7 +199,7 @@ export function startDevServer({ dir, port = 5173, host = '127.0.0.1', log = tru
       resolve({
         url: `http://${host}:${addr.port}`,
         server,
-        close: () => new Promise((r) => { watcher.close(); for (const c of clients) c.end(); server.close(r); server.closeAllConnections?.(); }),
+        close: () => new Promise((r) => { watcher.close(); sql.close(); for (const c of clients) c.end(); server.close(r); server.closeAllConnections?.(); }),
       });
     });
   });

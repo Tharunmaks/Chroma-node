@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { compileAll, PyreError, VERSION as PYRE_VERSION } from 'pyre-lang';
-import { Router, HttpError, readJSON, sendJSON, str } from './http.js';
+import { Router, HttpError, readJSON, readBody, sendJSON, str } from './http.js';
 import { siteHeaders, deploymentHeaders, RateLimiter, clientIp, safeEqual } from './security.js';
 import { Store } from './store.js';
 import { Auth } from './auth.js';
@@ -15,6 +15,12 @@ import { Deployments, DEPLOY_LIMITS } from './deployments.js';
 import { resolveSitePath } from './resolve.js';
 import { mimeType } from './mime.js';
 import { validateInput, runFunction, FN_LIMITS } from './functions.js';
+import { openDatabase } from './sqlite.js';
+import { Analytics } from './analytics.js';
+import { ProjectDatabase, DB_LIMITS } from './database.js';
+import { Models } from './models.js';
+import { runJsFunction, toHttp } from './js-functions.js';
+import { isHtml } from './mime.js';
 
 const require = createRequire(import.meta.url);
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -63,6 +69,7 @@ export function sendBuffer(req, res, status, buf, type, headers, etag) {
     h.Vary = 'Accept-Encoding';
   }
   h['Content-Length'] = body.length;
+  res.bodyBytes = body.length;
   res.writeHead(status, h);
   res.end(req.method === 'HEAD' ? undefined : body);
 }
@@ -105,12 +112,19 @@ export function createApp(options = {}) {
     https: !!options.https,
     trustProxy: !!options.trustProxy,
     allowSignup: options.allowSignup !== false,
+    allowJsFunctions: !!options.allowJsFunctions,
     domain: options.domain || null, // serve <project>.<domain> when set
     log: options.log !== false,
   };
   const store = new Store(cfg.dataDir);
   const auth = new Auth(store, { https: cfg.https });
   const deploys = new Deployments(store);
+  const sql = openDatabase(cfg.dataDir);
+  const analytics = new Analytics(sql);
+  const pdb = new ProjectDatabase(sql);
+  const models = new Models(sql);
+  const usernames = (uid) => store.data.users[uid]?.username || 'unknown';
+  const streams = new Set();
   const rl = { auth: 20, api: 600, fn: 60, compile: 120, deploy: 30, ...(options.rateLimits || {}) };
   const limiters = {
     auth: new RateLimiter({ limit: rl.auth, windowMs: 10 * 60 * 1000 }),
@@ -118,6 +132,8 @@ export function createApp(options = {}) {
     fn: new RateLimiter({ limit: rl.fn, windowMs: 60 * 1000 }),
     compile: new RateLimiter({ limit: rl.compile, windowMs: 60 * 1000 }),
     deploy: new RateLimiter({ limit: rl.deploy, windowMs: 10 * 60 * 1000 }),
+    db: new RateLimiter({ limit: rl.db || 300, windowMs: 60 * 1000 }),
+    event: new RateLimiter({ limit: rl.event || 120, windowMs: 60 * 1000 }),
   };
 
   const pageCache = new Map();
@@ -278,6 +294,8 @@ export function createApp(options = {}) {
     const user = requireUser(ctx);
     const p = deploys.ownedProject(user, ctx.params.name);
     deploys.deleteProject(p);
+    analytics.deleteProject(p.id);
+    pdb.dropProject(p.id);
     store.audit('project.deleted', { userId: user.id, ip: ctx.ip, detail: { name: p.name } });
     sendJSON(ctx.res, 200, { ok: true });
   });
@@ -357,25 +375,269 @@ export function createApp(options = {}) {
   api.add('OPTIONS', '/api/fn/:project/*', ({ res }) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '600',
     });
     res.end();
   });
-  api.post('/api/fn/:project/*', async ({ req, res, ip, params }) => {
+  async function functionHandler({ req, res, ip, params, url }) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     limiters.fn.check(`fn:${ip}`, res);
     const p = deploys.project(String(params.project).toLowerCase());
     const d = p && p.productionId && store.data.deployments[p.productionId];
     const fn = d && d.functions.find((f) => f.name === params.wild);
     if (!fn) throw new HttpError(404, 'function not found');
-    const body = await readJSON(req, 16 * 1024 * 1024);
-    const meta = JSON.parse(store.getBlob(d.files[`${fn.path}.json`].hash).toString('utf8')).meta;
-    const input = validateInput(body, meta);
-    const source = store.getBlob(d.files[fn.path].hash).toString('utf8');
-    const result = await runFunction(source, input);
-    sendJSON(res, 200, { buffers: result.buffers, ms: result.ms });
+    const started = performance.now();
+    let status = 200;
+    try {
+      if ((fn.type || 'pyre') === 'pyre') {
+        if (req.method !== 'POST') throw new HttpError(405, 'Pyre functions take POST requests');
+        const body = await readJSON(req, 16 * 1024 * 1024);
+        const meta = JSON.parse(store.getBlob(d.files[`${fn.path}.json`].hash).toString('utf8')).meta;
+        const input = validateInput(body, meta);
+        const source = store.getBlob(d.files[fn.path].hash).toString('utf8');
+        const result = await runFunction(source, input);
+        sendJSON(res, 200, { buffers: result.buffers, ms: result.ms });
+        return;
+      }
+      if (!cfg.allowJsFunctions) throw new HttpError(501, 'JS server functions are disabled on this server (start it with ALLOW_JS_FUNCTIONS=1)');
+      let body = null;
+      if (req.method !== 'GET' && req.method !== 'DELETE') {
+        const raw = await readBody(req, 1024 * 1024);
+        const text = raw.toString('utf8');
+        body = String(req.headers['content-type'] || '').startsWith('application/json') && text ? (() => { try { return JSON.parse(text); } catch { throw new HttpError(400, 'invalid JSON body'); } })() : text;
+      }
+      const request = {
+        method: req.method,
+        path: `/${params.wild}`,
+        query: Object.fromEntries(url.searchParams),
+        headers: Object.fromEntries(['content-type', 'accept', 'user-agent', 'referer', 'accept-language'].filter((h) => req.headers[h]).map((h) => [h, String(req.headers[h]).slice(0, 500)])),
+        body,
+        file: fn.path,
+      };
+      const ops = {
+        list: ([c, q = {}]) => { pdb.collection(p.id, c); return pdb.query(p.id, c, { where: q.where, order: q.order, limit: q.limit, offset: q.offset }); },
+        get: ([c, id]) => { pdb.collection(p.id, c); return pdb.get(p.id, c, id); },
+        add: ([c, doc]) => { pdb.collection(p.id, c, { create: true }); return pdb.add(p.id, c, doc); },
+        set: ([c, id, doc]) => { pdb.collection(p.id, c, { create: true }); return pdb.set(p.id, c, id, doc); },
+        update: ([c, id, doc]) => { pdb.collection(p.id, c); return pdb.set(p.id, c, id, doc, { merge: true }); },
+        remove: ([c, id]) => { pdb.collection(p.id, c); pdb.remove(p.id, c, id); return true; },
+      };
+      const source = store.getBlob(d.files[fn.path].hash).toString('utf8');
+      const { response } = await runJsFunction(source, request, { db: async (op, args) => { if (!Object.hasOwn(ops, op)) throw new Error('unknown operation'); return ops[op](args); } });
+      const out = toHttp(response);
+      status = out.status;
+      res.writeHead(out.status, { ...out.headers, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': Buffer.byteLength(out.body) });
+      res.end(req.method === 'HEAD' ? undefined : out.body);
+    } catch (err) {
+      status = err.status || 500;
+      if (err.detail) {
+        sendJSON(res, status, { error: err.message, detail: err.detail, logs: err.logs });
+        return;
+      }
+      throw err;
+    } finally {
+      analytics.record(p.id, { kind: 'fn', name: fn.name, status, ms: performance.now() - started, ip, ua: String(req.headers['user-agent'] || ''), host: req.headers.host });
+    }
+  }
+  for (const m of ['get', 'post', 'put', 'delete']) api[m]('/api/fn/:project/*', functionHandler);
+  api.add('PATCH', '/api/fn/:project/*', functionHandler);
+
+  // ---------- Server-Sent Events helper ----------
+  function openStream(req, res, { cors = false } = {}) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      ...(cors ? { 'Access-Control-Allow-Origin': '*' } : {}),
+    });
+    res.write('retry: 2000\n\n');
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const ping = setInterval(() => res.write(': ping\n\n'), 15000);
+    const cleanups = [() => clearInterval(ping)];
+    const close = () => { for (const c of cleanups.splice(0)) c(); streams.delete(close); };
+    streams.add(close);
+    req.on('close', close);
+    return { send, onClose: (fn) => cleanups.push(fn), end: () => { close(); res.end(); } };
+  }
+
+  // ---------- analytics ----------
+  api.get('/api/projects/:name/analytics', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    const range = String(ctx.url.searchParams.get('range') || '24h');
+    sendJSON(ctx.res, 200, analytics.summary(p.id, range));
+  });
+
+  api.get('/api/projects/:name/analytics/stream', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    const s = openStream(ctx.req, ctx.res);
+    s.send('live', { visitors: analytics.live(p.id) });
+    const onHit = (hit) => s.send('hit', hit);
+    analytics.on(p.id, onHit);
+    const tick = setInterval(() => s.send('live', { visitors: analytics.live(p.id) }), 5000);
+    s.onClose(() => { analytics.off(p.id, onHit); clearInterval(tick); });
+  });
+
+  // custom events from deployed pages: POST /api/a/<project>/event {name}
+  api.add('OPTIONS', '/api/a/:project/event', ({ res }) => {
+    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600' });
+    res.end();
+  });
+  api.post('/api/a/:project/event', async ({ req, res, ip, params }) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    limiters.event.check(`event:${ip}`, res);
+    const p = deploys.project(String(params.project).toLowerCase());
+    if (!p) throw new HttpError(404, 'project not found');
+    const body = await readJSON(req, 4096);
+    const name = str(body.name, 'name', { min: 1, max: 64, pattern: /^[\w .:/-]+$/ });
+    analytics.record(p.id, { kind: 'event', name, path: typeof body.path === 'string' ? body.path : null, ip, ua: String(req.headers['user-agent'] || ''), ref: req.headers.referer, host: req.headers.host });
+    sendJSON(res, 202, { ok: true });
+  });
+
+  // ---------- project database (owner) ----------
+  api.get('/api/projects/:name/db', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    sendJSON(ctx.res, 200, { collections: pdb.collections(p.id), limits: DB_LIMITS });
+  });
+  api.post('/api/projects/:name/db', async (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    const body = await readJSON(ctx.req);
+    pdb.collection(p.id, str(body.name, 'name', { max: 40 }), { create: true });
+    const rules = pdb.setRules(p.id, body.name, { read: body.read, write: body.write });
+    store.audit('db.collection.created', { userId: user.id, ip: ctx.ip, detail: { project: p.name, collection: body.name } });
+    sendJSON(ctx.res, 201, { collection: rules });
+  });
+  api.put('/api/projects/:name/db/:col/rules', async (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    const body = await readJSON(ctx.req);
+    const rules = pdb.setRules(p.id, ctx.params.col, body);
+    store.audit('db.rules.changed', { userId: user.id, ip: ctx.ip, detail: { project: p.name, collection: ctx.params.col, read: rules.read, write: rules.write } });
+    sendJSON(ctx.res, 200, { collection: rules });
+  });
+  api.delete('/api/projects/:name/db/:col', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    pdb.dropCollection(p.id, ctx.params.col);
+    store.audit('db.collection.deleted', { userId: user.id, ip: ctx.ip, detail: { project: p.name, collection: ctx.params.col } });
+    sendJSON(ctx.res, 200, { ok: true });
+  });
+  api.get('/api/projects/:name/db/:col', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    pdb.collection(p.id, ctx.params.col);
+    sendJSON(ctx.res, 200, pdb.query(p.id, ctx.params.col, queryParams(ctx.url)));
+  });
+  api.post('/api/projects/:name/db/:col/docs', async (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    pdb.collection(p.id, ctx.params.col, { create: true });
+    sendJSON(ctx.res, 201, { doc: pdb.add(p.id, ctx.params.col, await readJSON(ctx.req, DB_LIMITS.docBytes * 2)) });
+  });
+  api.delete('/api/projects/:name/db/:col/docs/:id', (ctx) => {
+    const user = requireUser(ctx);
+    const p = deploys.ownedProject(user, ctx.params.name);
+    pdb.collection(p.id, ctx.params.col);
+    pdb.remove(p.id, ctx.params.col, ctx.params.id);
+    sendJSON(ctx.res, 200, { ok: true });
+  });
+
+  function queryParams(url) {
+    return { where: url.searchParams.getAll('where'), order: url.searchParams.get('order'), limit: url.searchParams.get('limit'), offset: url.searchParams.get('offset') };
+  }
+
+  // ---------- project database (public, for deployed sites) ----------
+  // /api/db/<project>/<collection>[/<id>|/stream]. Access follows the
+  // collection's rules; an owner's API token (Bearer) bypasses them.
+  api.add('OPTIONS', '/api/db/:project/*', ({ res }) => {
+    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600' });
+    res.end();
+  });
+  async function publicDb(ctx) {
+    const { req, res, ip, params } = ctx;
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    limiters.db.check(`db:${ip}`, res);
+    const p = deploys.project(String(params.project).toLowerCase());
+    if (!p) throw new HttpError(404, 'project not found');
+    const [col, id, extra] = String(params.wild || '').split('/');
+    if (!col || extra !== undefined) throw new HttpError(404, 'use /api/db/<project>/<collection>[/<id>]');
+    const c = pdb.collection(p.id, col);
+    let isOwner = false;
+    if (String(req.headers.authorization || '').startsWith('Bearer ')) {
+      const who = auth.identify(req);
+      isOwner = who && who.user.id === p.ownerId;
+      if (!isOwner) throw new HttpError(403, 'that token does not own this project');
+    }
+    const started = performance.now();
+    const record = (status) => analytics.record(p.id, { kind: 'db', name: `${req.method} ${col}`, status, ms: performance.now() - started, ip, ua: String(req.headers['user-agent'] || ''), host: req.headers.host });
+    if (req.method === 'GET' && id === 'stream') {
+      pdb.authorize(c, 'read', isOwner);
+      const s = openStream(req, res, { cors: true });
+      const onChange = (change) => s.send(change.type, change);
+      pdb.on(`${p.id}/${col}`, onChange);
+      s.onClose(() => pdb.off(`${p.id}/${col}`, onChange));
+      return;
+    }
+    if (req.method === 'GET') {
+      pdb.authorize(c, 'read', isOwner);
+      record(200);
+      return sendJSON(res, 200, id ? { doc: pdb.get(p.id, col, id) } : pdb.query(p.id, col, queryParams(ctx.url)), { 'Access-Control-Allow-Origin': '*' });
+    }
+    if (req.method === 'POST' && !id) {
+      pdb.authorize(c, 'create', isOwner);
+      const doc = pdb.add(p.id, col, await readJSON(req, DB_LIMITS.docBytes * 2));
+      record(201);
+      return sendJSON(res, 201, { doc }, { 'Access-Control-Allow-Origin': '*' });
+    }
+    if ((req.method === 'PUT' || req.method === 'PATCH') && id) {
+      pdb.authorize(c, 'write', isOwner);
+      const doc = pdb.set(p.id, col, id, await readJSON(req, DB_LIMITS.docBytes * 2), { merge: req.method === 'PATCH' });
+      record(200);
+      return sendJSON(res, 200, { doc }, { 'Access-Control-Allow-Origin': '*' });
+    }
+    if (req.method === 'DELETE' && id) {
+      pdb.authorize(c, 'write', isOwner);
+      pdb.remove(p.id, col, id);
+      record(200);
+      return sendJSON(res, 200, { ok: true }, { 'Access-Control-Allow-Origin': '*' });
+    }
+    throw new HttpError(405, 'method not allowed here');
+  }
+  for (const m of ['get', 'post', 'put', 'delete']) api[m]('/api/db/:project/*', publicDb);
+  api.add('PATCH', '/api/db/:project/*', publicDb);
+
+  // ---------- saved models ----------
+  api.get('/api/models', (ctx) => {
+    const user = requireUser(ctx);
+    sendJSON(ctx.res, 200, { models: models.list(user.id) });
+  });
+  api.get('/api/models/gallery', (ctx) => {
+    sendJSON(ctx.res, 200, models.gallery({ limit: ctx.url.searchParams.get('limit'), offset: ctx.url.searchParams.get('offset') }, usernames));
+  });
+  api.post('/api/models', async (ctx) => {
+    const user = requireUser(ctx);
+    const m = models.create(user.id, await readJSON(ctx.req, 64 * 1024));
+    store.audit('model.saved', { userId: user.id, ip: ctx.ip, detail: { id: m.id, name: m.name } });
+    sendJSON(ctx.res, 201, { model: m });
+  });
+  api.get('/api/models/:id', (ctx) => {
+    const who = auth.identify(ctx.req);
+    sendJSON(ctx.res, 200, { model: models.get(ctx.params.id, who?.user.id, usernames) });
+  });
+  api.put('/api/models/:id', async (ctx) => {
+    const user = requireUser(ctx);
+    sendJSON(ctx.res, 200, { model: models.update(ctx.params.id, user.id, await readJSON(ctx.req, 64 * 1024)) });
+  });
+  api.delete('/api/models/:id', (ctx) => {
+    const user = requireUser(ctx);
+    models.remove(ctx.params.id, user.id);
+    sendJSON(ctx.res, 200, { ok: true });
   });
 
   // ---------- templates ----------
@@ -402,9 +664,20 @@ export function createApp(options = {}) {
   }
 
   // ---------- deployed sites ----------
-  function serveDeployment(req, res, d, rest, basePath) {
+  function serveDeployment(req, res, d, rest, basePath, { track = false } = {}) {
     const has = (p) => Object.hasOwn(d.files, p);
     const r = resolveSitePath(has, rest, d.config);
+    if (track) {
+      // page views (HTML and 404s) feed the project's live analytics
+      const started = performance.now();
+      res.once('finish', () => {
+        if (req.method !== 'GET' || (r.path && !isHtml(r.path) && r.status < 400)) return;
+        analytics.record(d.projectId, {
+          kind: 'page', path: '/' + rest, status: res.statusCode, ms: performance.now() - started, bytes: res.bodyBytes || 0,
+          ref: req.headers.referer, ip: clientIp(req, cfg.trustProxy), ua: String(req.headers['user-agent'] || ''), host: req.headers.host,
+        });
+      });
+    }
     if (r.redirect) {
       res.writeHead(308, { Location: r.redirect });
       return res.end();
@@ -438,7 +711,7 @@ export function createApp(options = {}) {
       if (cfg.log) console.log(`${new Date().toISOString()} ${ip} ${req.method} ${pathname} ${res.statusCode} ${Date.now() - started}ms`);
     });
     try {
-      if (!['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'].includes(req.method)) throw new HttpError(405, 'method not allowed');
+      if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(req.method)) throw new HttpError(405, 'method not allowed');
       if (req.url.length > 4096) throw new HttpError(414, 'URL too long');
 
       // <project>.<domain> hosting
@@ -449,7 +722,7 @@ export function createApp(options = {}) {
           const p = deploys.project(name);
           const d = p && p.productionId && store.data.deployments[p.productionId];
           if (!d) throw new HttpError(404, 'no production deployment for this project');
-          return serveDeployment(req, res, d, pathname, '/');
+          return serveDeployment(req, res, d, pathname, '/', { track: true });
         }
       }
 
@@ -480,7 +753,7 @@ export function createApp(options = {}) {
           d = p && p.productionId ? store.data.deployments[p.productionId] : null;
         }
         if (!d) throw new HttpError(404, kind === 'p' ? 'this project has no production deployment yet' : 'deployment not found');
-        return serveDeployment(req, res, d, rest.slice(1), `/${kind}/${id}/`);
+        return serveDeployment(req, res, d, rest.slice(1), `/${kind}/${id}/`, { track: kind === 'p' });
       }
 
       const headers = siteHeaders({ https: cfg.https });
@@ -522,8 +795,14 @@ export function createApp(options = {}) {
     store,
     auth,
     deploys,
+    analytics,
+    pdb,
+    models,
     close() {
       Object.values(limiters).forEach((l) => l.stop());
+      for (const c of [...streams]) c();
+      analytics.close();
+      sql.close();
       store.close();
     },
     limits: { deploy: DEPLOY_LIMITS, fn: FN_LIMITS },

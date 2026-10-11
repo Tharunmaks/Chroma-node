@@ -8,6 +8,7 @@
 //   TRUST_PROXY=1         trust X-Forwarded-For from a reverse proxy (for rate limits / audit)
 //   CHROMA_DOMAIN=x.com   also serve projects at <project>.x.com
 //   ALLOW_SIGNUP=0        disable open registration
+//   ALLOW_JS_FUNCTIONS=1  run api/*.js server functions (sandboxed child processes)
 import http from 'node:http';
 import { createApp, VERSION } from './app.js';
 
@@ -18,6 +19,7 @@ export function startServer(opts = {}) {
     trustProxy: opts.trustProxy ?? process.env.TRUST_PROXY === '1',
     domain: opts.domain || process.env.CHROMA_DOMAIN,
     allowSignup: opts.allowSignup ?? process.env.ALLOW_SIGNUP !== '0',
+    allowJsFunctions: opts.allowJsFunctions ?? process.env.ALLOW_JS_FUNCTIONS === '1',
     log: opts.log,
     dev: opts.dev,
     rateLimits: opts.rateLimits,

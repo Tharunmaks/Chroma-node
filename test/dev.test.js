@@ -50,3 +50,21 @@ test('dev server: compiles Pyre on the fly, runs functions, reloads, stays in it
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('dev server: JS functions and an in-memory database work locally', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chroma-dev-'));
+  fs.writeFileSync(path.join(dir, 'index.html'), 'hi');
+  fs.mkdirSync(path.join(dir, 'api'));
+  fs.writeFileSync(path.join(dir, 'api', 'count.js'), "export default async (req, { db }) => { await db.collection('hits').add({ at: 1 }); return { json: { total: (await db.collection('hits').list()).total } }; }");
+  const dev = await startDevServer({ dir, port: 0, log: false });
+  try {
+    await fetch(`${dev.url}/api/fn/dev/count`);
+    assert.deepEqual(await (await fetch(`${dev.url}/api/fn/dev/count`)).json(), { total: 2 });
+    const add = await fetch(`${dev.url}/api/db/dev/notes`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"text":"x"}' });
+    assert.equal(add.status, 201);
+    assert.equal((await (await fetch(`${dev.url}/api/db/dev/notes`)).json()).total, 1);
+  } finally {
+    await dev.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

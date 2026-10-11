@@ -3,6 +3,7 @@
 // the source; kernels produce <name>.wgsl; every file gets <name>.pyre.json
 // with metadata. Kernels inside api/ become HTTP functions.
 import { compileAll, PyreError } from 'pyre-lang';
+import { checkJsFunction } from './js-functions.js';
 
 export function buildSite(files) {
   const outputs = new Map();
@@ -28,7 +29,7 @@ export function buildSite(files) {
       log.push({ level: 'info', file: path, message: `compiled ${what} -> ${[r.glsl && 'glsl', r.wgsl && 'wgsl'].filter(Boolean).join(', ') || 'json'}` });
       if (r.meta.entry === 'kernel' && path.startsWith('api/')) {
         const name = path.slice(4, -'.pyre'.length);
-        functions.push({ name, path });
+        functions.push({ name, path, type: 'pyre' });
         log.push({ level: 'info', file: path, message: `function ready: POST /api/fn/<project>/${name}` });
       }
     } catch (err) {
@@ -36,6 +37,22 @@ export function buildSite(files) {
       ok = false;
       log.push({ level: 'error', file: path, message: err.format() });
     }
+  }
+  for (const path of [...files.keys()].filter((p) => /^api\/.+\.js$/.test(p)).sort()) {
+    const problem = checkJsFunction(files.get(path).toString('utf8'), path);
+    if (problem) {
+      ok = false;
+      log.push({ level: 'error', file: path, message: problem });
+      continue;
+    }
+    const name = path.slice(4, -3);
+    if (functions.some((f) => f.name === name)) {
+      ok = false;
+      log.push({ level: 'error', file: path, message: `api/${name}.pyre and api/${name}.js both define the function "${name}"` });
+      continue;
+    }
+    functions.push({ name, path, type: 'js' });
+    log.push({ level: 'info', file: path, message: `JS server function ready: /api/fn/<project>/${name}` });
   }
   if (!pyreFiles.length) log.push({ level: 'info', file: null, message: 'no .pyre files; static site' });
   return { ok, outputs, log, functions };
