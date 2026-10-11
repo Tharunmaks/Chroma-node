@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Model library · Chroma</title>
+<meta name="description" content="Browse 100,000+ procedurally generated 3D and 4D models: supershapes, torus knots, spherical harmonics, Lissajous knots, 4D polytopes and more. Open any of them in the studio, edit and export.">
+<script type="module" src="/assets/js/models.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main">
+  <header class="page-head">
+    <div class="subtle-grid"></div>
+    <div class="wrap">
+      <p class="eyebrow">Helix model library</p>
+      <h1>Every shape, <span class="grad">one click away.</span></h1>
+      <p class="lead">Procedurally generated 3D and 4D models with stable ids. Each is built from parameters on demand, so nothing is downloaded. Open any model in the studio to tweak it, then save it or export it as glTF or OBJ.</p>
+      <div class="kpis" id="kpis"></div>
+    </div>
+  </header>
+  <section class="wrap lib">
+    <div class="lib-bar">
+      <div class="seg" role="tablist" id="tabs">
+        <button role="tab" aria-selected="true" data-tab="library">Library</button>
+        <button role="tab" aria-selected="false" data-tab="community">Community</button>
+      </div>
+      <label class="sr-only" for="q">Search models</label>
+      <input id="q" type="search" placeholder='Search: "knot 3 7", "harmonic", "duoprism/42"…' autocomplete="off">
+      <div class="seg" role="group" aria-label="Dimensions" id="dims">
+        <button aria-selected="true" data-d="all">All</button><button aria-selected="false" data-d="3">3D</button><button aria-selected="false" data-d="4">4D</button>
+      </div>
+      <button class="btn small" id="random">🎲 Surprise me</button>
+    </div>
+    <div class="chips" id="families" role="group" aria-label="Families"></div>
+    <p class="small dim" id="status" aria-live="polite"></p>
+    <div class="model-grid" id="grid"></div>
+    <div id="sentinel" aria-hidden="true"></div>
+  </section>
+</main>
+<dialog id="preview" class="preview-dlg">
+  <div class="preview-body">
+    <div class="viewport" id="pv-view"><canvas aria-label="Model preview"></canvas><span class="badge-live" id="pv-badge">3D</span></div>
+    <div class="pv-info">
+      <p class="eyebrow" id="pv-family"></p>
+      <h2 id="pv-name"></h2>
+      <p class="muted small" id="pv-desc"></p>
+      <table class="params" id="pv-params"></table>
+      <div class="row">
+        <a class="btn primary" id="pv-open" href="/studio">Open in Studio</a>
+        <button class="btn" id="pv-copy">Copy code</button>
+        <button class="btn" id="pv-close">Close</button>
+      </div>
+      <pre class="log" id="pv-code"></pre>
+    </div>
+  </div>
+</dialog>
+<!--#footer-->
+</body>
+</html>

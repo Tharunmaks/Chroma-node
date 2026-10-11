@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Realtime 3D guestbook</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+    "three": "/vendor/three/three.module.js",
+    "three/addons/": "/vendor/three/addons/",
+    "pyre": "/vendor/pyre/index.js",
+    "helix": "/assets/js/helix/helix.js",
+    "helix/": "/assets/js/helix/"
+} }
+</script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+  <canvas id="scene" aria-label="A rotating 4D polytope"></canvas>
+  <main>
+    <h1>Sign the <span>guestbook</span></h1>
+    <p>Messages are stored in this project's database and appear for everyone instantly. The shape behind you is the 24-cell, rotating through four dimensions.</p>
+    <form id="form">
+      <input name="name" placeholder="Your name" maxlength="40" required>
+      <input name="message" placeholder="Say something nice" maxlength="280" required>
+      <button>Sign</button>
+    </form>
+    <p class="hint" id="stats"></p>
+    <ul id="list" aria-live="polite"></ul>
+  </main>
+</body>
+</html>

@@ -131,3 +131,15 @@ test('deleting a project removes its deployments and unreferenced blobs', async 
   assert.equal((await alice.req('DELETE', '/api/projects/temp')).status, 200);
   assert.equal((await fetch(`${srv.url}/p/temp/`)).status, 404);
 });
+
+test('the full-stack template deploys with its database collection configured', async () => {
+  await alice.req('POST', '/api/projects', { name: 'guest' });
+  const r = await alice.req('POST', '/api/projects/guest/templates/fullstack');
+  assert.equal(r.data.deployment.status, 'READY');
+  assert.deepEqual(r.data.deployment.functions, ['stats']);
+  const cols = (await alice.req('GET', '/api/projects/guest/db')).data.collections;
+  assert.deepEqual(cols.map((c) => [c.name, c.read, c.write]), [['guestbook', 'public', 'create']]);
+  const add = await fetch(`${srv.url}/api/db/guest/guestbook`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"a","message":"b"}' });
+  assert.equal(add.status, 201);
+  assert.deepEqual(await (await fetch(`${srv.url}/api/fn/guest/stats`)).json(), { total: 1 });
+});

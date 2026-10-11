@@ -228,9 +228,12 @@ export function createStarfield({ count = 1800, radius = 30, colors = ['#ffffff'
 export class Helix {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
-    this.opts = { controls: true, bloom: false, autoRotate: false, fov: 45, maxPixelRatio: 2, camera: [0, 0, 6], environment: true, ...opts };
+    this.opts = { controls: true, bloom: false, autoRotate: false, fov: 45, maxPixelRatio: 2, camera: [0, 0, 6], environment: true, adaptive: true, ...opts };
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.opts.maxPixelRatio));
+    this.maxRatio = Math.min(window.devicePixelRatio || 1, this.opts.maxPixelRatio);
+    this.pixelRatio = this.maxRatio;
+    this.renderer.setPixelRatio(this.pixelRatio);
+    this.perf = { last: 0, sum: 0, n: 0, cooldown: 0, fps: 0 };
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.info.autoReset = false; // count every pass of a frame together
@@ -283,9 +286,12 @@ export class Helix {
     window.addEventListener('pointermove', this.onPointer, { passive: true });
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
-    this.io = new IntersectionObserver(([entry]) => { this.visible = entry.isIntersecting; }, { threshold: 0 });
+    this.io = new IntersectionObserver(([entry]) => {
+      this.visible = entry.isIntersecting;
+      if (this.visible) { this.clock.getDelta(); this.perf.last = 0; } // no time jump when scrolling back
+    }, { threshold: 0, rootMargin: '120px' });
     this.io.observe(canvas);
-    this.onVisibility = () => { if (document.hidden) this.clock.stop(); else this.clock.start(); };
+    this.onVisibility = () => { if (document.hidden) this.clock.stop(); else { this.clock.start(); this.perf.last = 0; } };
     document.addEventListener('visibilitychange', this.onVisibility);
     this.resize();
   }
@@ -357,9 +363,39 @@ export class Helix {
 
   onFrame(cb) { this.frameCallbacks.add(cb); return () => this.frameCallbacks.delete(cb); }
 
+  /**
+   * Adaptive resolution: if frames take longer than ~45 fps, render fewer
+   * pixels; when there is headroom again, step back up. Keeps motion smooth
+   * on slow GPUs instead of stuttering at full resolution.
+   */
+  adapt(now) {
+    const p = this.perf;
+    if (p.last) {
+      const ms = now - p.last;
+      if (ms < 250) { p.sum += ms; p.n++; }
+    }
+    p.last = now;
+    if (p.n < 45) return;
+    const avg = p.sum / p.n;
+    p.fps = Math.round(1000 / avg);
+    p.sum = 0;
+    p.n = 0;
+    if (!this.opts.adaptive || now < p.cooldown) return;
+    let next = this.pixelRatio;
+    if (avg > 22 && this.pixelRatio > 0.6) next = Math.max(0.6, this.pixelRatio - 0.25);
+    else if (avg < 17.5 && this.pixelRatio < this.maxRatio) next = Math.min(this.maxRatio, this.pixelRatio + 0.25);
+    if (next !== this.pixelRatio) {
+      this.pixelRatio = next;
+      this.renderer.setPixelRatio(next);
+      this.resize();
+      p.cooldown = now + 2000;
+    }
+  }
+
   renderFrame() {
     this.renderer.info.reset();
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    this.adapt(performance.now());
+    const dt = Math.min(this.clock.getDelta(), 1 / 20);
     this.time += dt * this.timeScale;
     this.pointer.lerp(this.pointerTarget, 1 - Math.pow(0.001, dt));
     for (const cb of this.frameCallbacks) cb(this.time, dt);

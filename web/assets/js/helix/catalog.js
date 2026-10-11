@@ -609,3 +609,20 @@ export function search(query, { limit = 60, family, offset = 0 } = {}) {
   }
   return out;
 }
+
+/** Geometry from a (n+1)·(m+1) grid of points (used by Pyre-defined models). */
+export function fromGrid(positions, n, m, dims = 3) {
+  const pts = [];
+  for (let k = 0; k < (n + 1) * (m + 1); k++) pts.push(Array.from(positions.subarray(k * dims, k * dims + dims)));
+  if (dims === 4) {
+    const edges = [];
+    for (let j = 0; j <= m; j++) for (let i = 0; i <= n; i++) {
+      const a = j * (n + 1) + i;
+      if (i < n) edges.push(a, a + 1);
+      if (j < m && i % Math.max(1, Math.round(n / 24)) === 0) edges.push(a, a + n + 1);
+    }
+    return new Polytope4D({ verts: pts, edges }, { points: false });
+  }
+  let k = 0;
+  return new THREE.Mesh(normalize(gridSurface(() => pts[k++], n, m)));
+}

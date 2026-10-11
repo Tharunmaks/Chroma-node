@@ -1,11 +1,14 @@
 # ◆ Chroma
 
-**Deploy platform · Helix 3D engine · Pyre GPU language — in one Node.js package.**
+**Deploy platform · Helix 3D engine · Pyre GPU language & Torch — in one Node.js package.**
 
-Write shaders and compute kernels in [**Pyre**](https://github.com/Tharunmaks/Pyre) (GPU code with
-Python syntax), render them on 3D models with **Helix** (Three.js with live Pyre materials), and ship
-sites to your own server with `chroma deploy` — previews, instant rollback, build logs and HTTP
-"Pyre Functions" included.
+* **Helix** renders a library of **109,630 procedural 3D and 4D models** (supershapes, torus knots,
+  spherical harmonics, Lissajous knots, all six regular 4-polytopes, duoprisms, Clifford torus
+  knots…) with live Pyre materials, a model studio, glTF/OBJ export and saving.
+* **[Pyre](https://github.com/Tharunmaks/Pyre)** is GPU code with Python syntax (GLSL/WGSL/JS) plus
+  **Pyre Torch**, PyTorch-style tensors, autograd, `nn` and optimizers on the CPU.
+* **The platform** deploys sites to your own server with previews and instant rollback, and gives
+  every project a **realtime database**, **JS and Pyre server functions** and **live analytics**.
 
 ![Chroma landing page](docs/screenshots/landing.jpg)
 
@@ -44,19 +47,36 @@ chroma rollback my-site         # instant rollback
 | **CLI** | `bin/chroma.js` | `init`, `dev`, `build`, `login`, `deploy`, `projects`, `deployments`, `promote`, `rollback`, `run`, `server`, `pyre` |
 | **Helix engine** | `web/assets/js/helix/` | Three.js wrapper: Pyre materials, glTF loading, bloom, orbit controls, procedural models, render-when-visible |
 | **Pyre** | dependency (`pyre-lang`) | Compiler to GLSL / WGSL / JS, from [Tharunmaks/Pyre](https://github.com/Tharunmaks/Pyre) |
-| **Templates** | `templates/` | `helix-starter` (3D page + shader + function), `static` |
+| **Templates** | `templates/` | `helix-starter` (3D page + shader + function), `fullstack` (realtime guestbook + JS function + analytics + 4D model), `static` |
+
+### Backend (built in, SQLite)
+
+| Feature | What you get |
+| --- | --- |
+| Database | JSON collections per project, rules (`public` / `create` / `private`), queries, realtime SSE subscriptions, browser SDK |
+| Server functions | `api/*.js` handlers (sandboxed child process per request) and `api/*.pyre` kernels |
+| Analytics | Live visitors, views, unique visitors, referrers, devices, status codes, functions, custom events — no cookies or stored IPs |
+| Models | Save edited or Pyre-written models to your account, share them in the community gallery |
 
 ### Pages
 
 * **`/`** — 3D hero (Pyre iridescent torus knot, DNA helix, crystals, starfield, bloom), live shader
   showcase with compiled GLSL/WGSL, model viewer with glTF drag-and-drop, deploy terminal.
+* **`/models`** — the 109,630-model library: search, family and 3D/4D filters, live thumbnails,
+  preview with copy-paste code, community gallery.
+* **`/studio`** — edit any model's parameters, write your own in Pyre (`surface(u, v)` or 4D
+  `surface4`), materials (PBR or Pyre shaders), 4D rotation controls, save, export `.glb`/`.obj`/`.png`.
+* **`/torch`** — a live Pyre Torch notebook (sandboxed worker): train classifiers with streaming
+  loss charts and decision-boundary plots.
+* **`/platform`** — deployments, database, functions and analytics explained.
 * **`/playground`** — editor with Pyre highlighting, auto-indent and inline errors; live 3D preview on
   8 models or your `.glb`; auto-generated uniform controls; GLSL/WGSL/JS output; kernels run on the CPU
   (in a sandboxed worker) **and** on WebGPU with a correctness check and 3D visualisation; share links;
   one-click deploy.
 * **`/engine`** — Helix studio: scenes, Pyre and PBR materials, bloom, instancing, your own models.
 * **`/dashboard`** — sign up / in, projects with live previews, drag-and-drop folder deploys, build
-  logs, promote/rollback, API tokens, password change, audit log.
+  logs, promote/rollback, **live analytics**, **database browser & rules**, API tokens, password
+  change, audit log.
 * **`/docs`** — getting started, CLI, deployments, Pyre reference, Helix API, REST API, security,
   self-hosting.
 
@@ -72,16 +92,19 @@ built in rather than bolted on — see [SECURITY.md](SECURITY.md). Highlights:
 * every deployed file is served with a CSP **sandbox** → user sites run in an opaque origin and can't
   touch the dashboard or API with your credentials
 * upload validation (traversal, hidden files, size caps), content-addressed storage
-* Pyre Functions in fresh worker threads with time, memory, loop and buffer limits
+* Pyre Functions in fresh worker threads with time, memory, loop and buffer limits; JS functions in a
+  fresh permission-restricted child process with no code generation and a string-only bridge
+* database rules per collection, parameterised SQL, analytics without cookies or stored IPs
 
 ## Development
 
 ```sh
-npm test          # 31 tests: auth, CSRF, isolation, uploads, sandboxing, functions, dev server, CSP
+npm test          # 43 tests: auth, CSRF, isolation, uploads, sandboxing, database rules, analytics,
+                  # JS-function escape attempts, catalogue geometry, dev server, CSP
 npm run dev       # restart on change
 ```
 
-Requirements: Node.js 20+. Runtime dependencies: `three` and `pyre-lang` (no framework).
+Requirements: Node.js 22.5+ (built-in SQLite). Runtime dependencies: `three` and `pyre-lang` (no framework).
 Deploy with Docker: `docker compose up -d` (data in the `chroma-data` volume).
 
 MIT licensed.

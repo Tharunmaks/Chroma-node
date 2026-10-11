@@ -1,6 +1,8 @@
 // Landing page: hero scene, live Pyre shader showcase, Helix model viewer
 // and the deploy terminal animation.
-import { $, $$, h, highlightPyre, highlightC } from './common.js';
+import { $, $$, h, highlightPyre, highlightC, highlightJS } from './common.js';
+import { get, TOTAL } from 'helix/catalog.js';
+import { ThumbRenderer } from 'helix/thumbs.js';
 import { Helix, Models, THREE, createDNA, createStarfield, supported } from 'helix';
 import { compileAll } from 'pyre';
 import { SHADERS } from './shaders.js';
@@ -14,8 +16,46 @@ if (!supported()) {
   heroScene();
   pyreShowcase();
   helixViewer();
+  modelStrip();
 }
 terminal();
+torchCode();
+
+function modelStrip() {
+  const strip = $('#strip');
+  if (!strip) return;
+  const thumbs = new ThumbRenderer(160);
+  const picks = ['knot/912', 'polytope/5', 'harmonic/7595', 'supershape/10125', 'duoprism/566', 'lissajous/13567', 'shell/871', 'clifford/242', 'superquadric/1979', 'hypershape/1234', 'surface/6', 'polyhedron/155'];
+  const io = new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting) return;
+    io.disconnect();
+    for (const id of picks.slice(0, matchMedia('(max-width: 860px)').matches ? 6 : 12)) {
+      const m = get(id);
+      const c = h('canvas', { width: 160, height: 160, 'aria-hidden': 'true' });
+      strip.append(h('a', { href: `/studio#id=${id}`, 'aria-label': `Open ${m.name} in the studio` }, c, h('span', {}, `${m.family.dims}D · ${m.label}`)));
+      thumbs.request(m, c);
+    }
+  }, { rootMargin: '400px' });
+  io.observe(strip);
+}
+
+function torchCode() {
+  const el = $('#torch-code');
+  if (!el) return;
+  el.innerHTML = highlightJS(`import torch from 'pyre-lang/torch';
+const { nn, optim, data } = torch;
+
+const model = new nn.Sequential(
+  new nn.Linear(2, 64), new nn.ReLU(),
+  new nn.Linear(64, 2));
+const opt = new optim.AdamW(model.parameters(), { lr: 0.01 });
+
+for (const [xb, yb] of loader) {
+  const loss = nn.crossEntropy(model(xb), yb);
+  opt.zeroGrad(); loss.backward(); opt.step();
+}
+// epoch 200  loss 0.0412  accuracy 98.7%`);
+}
 
 // ---------------- hero ----------------
 function heroScene() {
@@ -58,10 +98,14 @@ function heroScene() {
   layout();
   window.addEventListener('resize', layout);
 
+  // scroll drives the camera through a critically damped follow, so the
+  // motion stays smooth even when the browser delivers scroll events in bursts
+  let scrollTarget = 0;
   let scroll = 0;
-  window.addEventListener('scroll', () => { scroll = Math.min(1, window.scrollY / window.innerHeight); }, { passive: true });
+  window.addEventListener('scroll', () => { scrollTarget = Math.min(1, window.scrollY / window.innerHeight); }, { passive: true });
 
-  engine.onFrame((t) => {
+  engine.onFrame((t, dt) => {
+    scroll += (scrollTarget - scroll) * (1 - Math.exp(-dt * 6));
     knot.rotation.x = t * 0.18;
     knot.rotation.y = t * 0.27;
     dna.rotation.y = t * 0.25;

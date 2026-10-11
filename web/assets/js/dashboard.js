@@ -2,6 +2,7 @@
 // upload, promote, rollback, logs), API tokens and security settings.
 // All user-controlled text is inserted with textContent (via h()), never HTML.
 import { $, h, api, me, setCsrf, toast, copyText } from './common.js';
+import { lineChart, barList } from './charts.js';
 
 const app = $('#app');
 let user = null;
@@ -114,10 +115,12 @@ async function logout() {
   location.href = '/';
 }
 
+let cleanup = null;
 async function render() {
+  if (cleanup) { cleanup(); cleanup = null; }
   try {
     if (view.name === 'projects') return shell(await projectsView());
-    if (view.name === 'project') return shell(await projectView(view.project));
+    if (view.name === 'project') return shell(await projectView(view.project, view.tab || 'deployments'));
     if (view.name === 'tokens') return shell(await tokensView());
     if (view.name === 'security') return shell(await securityView());
   } catch (err) {
@@ -194,7 +197,7 @@ async function newProjectDialog() {
 }
 
 // ---------------- one project ----------------
-async function projectView(name) {
+async function projectView(name, tab) {
   const { project, deployments } = await api('GET', `/api/projects/${encodeURIComponent(name)}`);
   const prodUrl = location.origin + project.url;
   const head = h('div', { class: 'row' },
@@ -219,8 +222,15 @@ async function projectView(name) {
       !d.production && d.status === 'READY' ? h('button', { class: 'btn small', onclick: () => promote(project.name, d.id) }, 'Promote') : null,
       !d.production ? h('button', { class: 'btn small danger', 'aria-label': `Delete deployment ${d.id}`, onclick: () => deleteDeployment(project.name, d.id) }, 'Delete') : null))));
 
+  const tabs = h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Project sections' },
+    ...[['deployments', 'Deployments'], ['analytics', 'Analytics'], ['database', 'Database']].map(([k, label]) => h('button', {
+      role: 'tab', 'aria-selected': String(tab === k), onclick: () => go({ name: 'project', project: project.name, tab: k }),
+    }, label)));
+  if (tab === 'analytics') return [head, tabs, ...(await analyticsView(project))];
+  if (tab === 'database') return [head, tabs, ...(await databaseView(project))];
   return [
     head,
+    tabs,
     uploader(project.name),
     h('section', { class: 'panel' },
       h('div', { class: 'panel-head' }, h('h2', {}, 'Deployments'), h('span', { class: 'spacer' }), h('span', { class: 'small dim' }, 'Promote any READY deployment to roll back instantly')),
@@ -233,6 +243,149 @@ async function projectView(name) {
       h('div', { class: 'panel-head' }, h('h2', {}, 'Deploy from your terminal')),
       h('div', { class: 'panel-body' },
         h('pre', { class: 'log' }, `npm i -g github:Tharunmaks/Chroma-node\nchroma login --server ${location.origin}\nchroma deploy ./my-site --project ${project.name}`))),
+  ];
+}
+
+// ---------------- analytics ----------------
+const nf = new Intl.NumberFormat('en');
+async function analyticsView(project) {
+  let range = view.range || '1h';
+  const kpis = h('div', { class: 'kpi-row' });
+  const chartBox = h('div');
+  const feed = h('div', { class: 'feed', 'aria-live': 'off' });
+  const lists = { pages: h('div'), referrers: h('div'), devices: h('div'), functions: h('div'), events: h('div'), statuses: h('div') };
+  const liveDot = h('span', { class: 'live-dot', 'aria-hidden': 'true' });
+  const liveNum = h('b', {}, '0');
+  let chart = null;
+  let refreshTimer = null;
+
+  const fmtTime = (t) => {
+    const d = new Date(t);
+    return range === '1h' || range === '24h' ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: range === '7d' ? '2-digit' : undefined });
+  };
+  async function load() {
+    const a = await api('GET', `/api/projects/${encodeURIComponent(project.name)}/analytics?range=${range}`);
+    liveNum.textContent = nf.format(a.live);
+    const t = a.totals;
+    kpis.replaceChildren(
+      h('div', { class: 'kpi-card live' }, h('span', {}, liveDot, 'Visitors now'), liveNum),
+      ...[['Page views', t.views], ['Unique visitors', t.visitors], ['Function calls', t.fnCalls], ['Database calls', t.dbCalls], ['Custom events', t.events], ['Errors', t.errors], ['Avg response', `${t.avgMs} ms`]]
+        .map(([k, v]) => h('div', { class: 'kpi-card' }, h('span', {}, k), h('b', {}, typeof v === 'number' ? nf.format(v) : v))),
+    );
+    const series = [
+      { name: 'Page views', values: a.series.map((p) => ({ x: p.t, y: p.views })) },
+      { name: 'Visitors', values: a.series.map((p) => ({ x: p.t, y: p.visitors })) },
+    ];
+    if (!chart) chart = lineChart(chartBox, { series, xFormat: fmtTime, label: 'Traffic over time' });
+    else chart.update({ series, xFormat: fmtTime });
+    barList(lists.pages, a.pages, { empty: 'No page views yet' });
+    barList(lists.referrers, a.referrers, { empty: 'No referrers yet' });
+    barList(lists.devices, a.devices, { empty: '—' });
+    barList(lists.functions, a.functions, { empty: 'No function calls yet' });
+    barList(lists.events, a.events, { empty: 'Send events with chroma().track(name)' });
+    barList(lists.statuses, a.statuses.map((r) => ({ key: `HTTP ${r.key}`, n: r.n })), { empty: '—' });
+  }
+  await load();
+
+  const es = new EventSource(`/api/projects/${encodeURIComponent(project.name)}/analytics/stream`);
+  es.addEventListener('live', (e) => { liveNum.textContent = nf.format(JSON.parse(e.data).visitors); });
+  es.addEventListener('hit', (e) => {
+    const hit = JSON.parse(e.data);
+    const what = hit.kind === 'page' ? hit.path : hit.kind === 'fn' ? `fn ${hit.name}` : hit.kind === 'event' ? `event ${hit.name}` : `db ${hit.name}`;
+    feed.prepend(h('div', { class: `feed-row ${hit.status >= 400 ? 'bad' : ''}` },
+      h('span', { class: 'tag' }, hit.kind), h('span', { class: 'k' }, what || '/'),
+      h('span', { class: 'dim' }, [hit.status, hit.ms !== null ? `${hit.ms} ms` : null, hit.device, hit.ref].filter(Boolean).join(' · ')),
+      h('span', { class: 'dim' }, new Date(hit.ts).toLocaleTimeString())));
+    while (feed.children.length > 40) feed.lastChild.remove();
+    liveDot.classList.remove('pulse');
+    void liveDot.offsetWidth;
+    liveDot.classList.add('pulse');
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(load, 1500);
+  });
+  const poll = setInterval(load, 30000);
+  cleanup = () => { es.close(); clearInterval(poll); clearTimeout(refreshTimer); };
+
+  const rangeSel = h('div', { class: 'seg', role: 'group', 'aria-label': 'Time range' }, ...['1h', '24h', '7d', '30d'].map((r) => h('button', {
+    'aria-selected': String(r === range), onclick: (e) => { range = r; view.range = r; for (const b of e.currentTarget.parentElement.children) b.setAttribute('aria-selected', String(b === e.currentTarget)); load(); },
+  }, r)));
+  const card = (title, el) => h('section', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h3', {}, title)), h('div', { class: 'panel-body' }, el));
+  return [
+    h('div', { class: 'row' }, h('p', { class: 'small muted' }, 'Privacy-friendly: no cookies, no stored IPs. Visitors are counted with a hash that rotates daily. Updates live.'), h('span', { class: 'spacer' }), rangeSel),
+    kpis,
+    card('Traffic', chartBox),
+    h('div', { class: 'grid cols-2' }, card('Live requests', feed), card('Top pages', lists.pages)),
+    h('div', { class: 'grid cols-3' }, card('Referrers', lists.referrers), card('Devices', lists.devices), card('Status codes', lists.statuses)),
+    h('div', { class: 'grid cols-2' }, card('Functions', lists.functions), card('Custom events', lists.events)),
+  ];
+}
+
+// ---------------- database ----------------
+async function databaseView(project) {
+  const base = `/api/projects/${encodeURIComponent(project.name)}/db`;
+  const { collections, limits } = await api('GET', base);
+  const selected = view.collection && collections.some((c) => c.name === view.collection) ? view.collection : collections[0]?.name;
+  const RULES = { read: [['private', 'Owner only'], ['public', 'Anyone (public read)']], write: [['private', 'Owner only'], ['create', 'Anyone can add'], ['public', 'Anyone can add, edit, delete']] };
+  const ruleSel = (c, kind) => {
+    const sel = h('select', { 'aria-label': `${kind} rule for ${c.name}` }, ...RULES[kind].map(([v, l]) => h('option', { value: v }, l)));
+    sel.value = c[kind];
+    sel.addEventListener('change', async () => {
+      try { await api('PUT', `${base}/${c.name}/rules`, { [kind]: sel.value }); toast(`${c.name}: ${kind} → ${sel.value}`); } catch (err) { toast(err.message, 'err'); }
+    });
+    return sel;
+  };
+  const list = h('div', { class: 'table-scroll' }, collections.length ? h('table', { class: 'list' },
+    h('thead', {}, h('tr', {}, ...['Collection', 'Documents', 'Read', 'Write', ''].map((t) => h('th', {}, t)))),
+    h('tbody', {}, collections.map((c) => h('tr', { class: c.name === selected ? 'sel' : '' },
+      h('td', {}, h('a', { href: '#', onclick: (e) => { e.preventDefault(); view.collection = c.name; render(); } }, h('code', {}, c.name))),
+      h('td', { class: 'muted' }, nf.format(c.count)),
+      h('td', {}, ruleSel(c, 'read')), h('td', {}, ruleSel(c, 'write')),
+      h('td', {}, h('button', { class: 'btn small danger', onclick: async () => {
+        if (!confirm(`Delete collection ${c.name} and its ${c.count} documents?`)) return;
+        await api('DELETE', `${base}/${c.name}`);
+        render();
+      } }, 'Delete')))))) : h('div', { class: 'empty' }, 'No collections yet.'));
+
+  const name = h('input', { placeholder: 'e.g. guestbook', maxlength: 40, required: true, pattern: '[a-z0-9][a-z0-9_\\-]{0,39}' });
+  const read = h('select', {}, ...RULES.read.map(([v, l]) => h('option', { value: v }, l)));
+  const write = h('select', {}, ...RULES.write.map(([v, l]) => h('option', { value: v }, l)));
+  const form = h('form', { class: 'row' }, h('label', { class: 'spacer' }, 'New collection', name), h('label', {}, 'Read', read), h('label', {}, 'Write', write), h('button', { class: 'btn primary', type: 'submit' }, 'Create'));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { await api('POST', base, { name: name.value.trim(), read: read.value, write: write.value }); view.collection = name.value.trim(); render(); } catch (err) { toast(err.message, 'err'); }
+  });
+
+  let docsPanel = h('div');
+  if (selected) {
+    const { docs, total } = await api('GET', `${base}/${selected}?limit=50`);
+    const json = h('textarea', { rows: 3, placeholder: '{ "name": "Ada", "score": 42 }', 'aria-label': 'New document JSON' });
+    const add = h('button', { class: 'btn small', onclick: async () => {
+      try { await api('POST', `${base}/${selected}/docs`, JSON.parse(json.value || '{}')); render(); } catch (err) { toast(err.message, 'err'); }
+    } }, 'Add document');
+    docsPanel = h('section', { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h3', {}, `${selected} · ${nf.format(total)} documents`), h('span', { class: 'spacer' }), h('button', { class: 'btn small', onclick: () => render() }, 'Refresh')),
+      h('div', { class: 'panel-body form' },
+        docs.length ? h('div', { class: 'table-scroll' }, h('table', { class: 'list' },
+          h('thead', {}, h('tr', {}, ...['_id', 'Created', 'Data', ''].map((t) => h('th', {}, t)))),
+          h('tbody', {}, docs.map((d) => {
+            const { _id, _created, _updated, ...rest } = d;
+            return h('tr', {}, h('td', {}, h('code', {}, _id)), h('td', { class: 'muted' }, new Date(_created).toLocaleString()),
+              h('td', {}, h('code', { class: 'doc' }, JSON.stringify(rest).slice(0, 160))),
+              h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { await api('DELETE', `${base}/${selected}/docs/${_id}`); render(); } }, 'Delete')));
+          })))) : h('p', { class: 'small muted' }, 'Empty collection.'),
+        h('div', { class: 'row' }, h('div', { class: 'spacer' }, json), add)));
+  }
+  const sdk = `import { chroma } from '/assets/js/chroma-sdk.js';
+const app = chroma();                       // "${project.name}", detected from the URL
+
+await app.db('${selected || 'guestbook'}').add({ name: 'Ada', message: 'Hello!' });
+const { docs } = await app.db('${selected || 'guestbook'}').list({ order: '-_created', limit: 20 });
+app.db('${selected || 'guestbook'}').subscribe((change) => console.log(change.type, change.doc));`;
+  return [
+    h('p', { class: 'small muted' }, `A JSON document database for your deployed site. Limits: ${limits.collections} collections, ${nf.format(limits.docsPerCollection)} documents each, ${limits.docBytes / 1024} KB per document. Your API token bypasses the rules from servers and CI.`),
+    h('section', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h3', {}, 'Collections')), list, h('div', { class: 'panel-body' }, form)),
+    docsPanel,
+    h('section', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h3', {}, 'Use it from your site'), h('span', { class: 'spacer' }), h('button', { class: 'copy', onclick: (e) => copyText(sdk, e.currentTarget) }, 'Copy')), h('div', { class: 'panel-body' }, h('pre', { class: 'log' }, sdk))),
   ];
 }
 

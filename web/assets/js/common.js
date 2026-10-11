@@ -192,3 +192,23 @@ initNav();
 initReveal();
 initCopy();
 initTilt();
+
+const JS_KEYWORDS = new Set('const let var function return if else for of in while do break continue new class extends await async import from export default try catch finally throw typeof instanceof this null undefined true false yield switch case'.split(' '));
+/** Small JavaScript highlighter (comments, strings, numbers, keywords, calls). */
+export function highlightJS(src) {
+  let out = '';
+  let last = 0;
+  const re = /(\/\/.*$|\/\*[\s\S]*?\*\/)|('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)|(\b\d[\d_]*\.?\d*(?:e[+-]?\d+)?\b)|([A-Za-z_$][\w$]*)(?=\s*\()|([A-Za-z_$][\w$]*)/gm;
+  for (const m of src.matchAll(re)) {
+    out += escapeHtml(src.slice(last, m.index));
+    last = m.index + m[0].length;
+    const [text, com, strl, num, call, word] = m;
+    if (com) out += `<span class="c">${escapeHtml(com)}</span>`;
+    else if (strl) out += `<span class="s">${escapeHtml(strl)}</span>`;
+    else if (num) out += `<span class="n">${num}</span>`;
+    else if (JS_KEYWORDS.has(call || word)) out += `<span class="k">${call || word}</span>`;
+    else if (call) out += `<span class="f">${escapeHtml(call)}</span>`;
+    else out += escapeHtml(text);
+  }
+  return out + escapeHtml(src.slice(last));
+}

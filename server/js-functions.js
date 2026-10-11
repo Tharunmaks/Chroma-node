@@ -1,6 +1,6 @@
 // JS server functions: `api/*.js` files in a deployment that export a
 // request handler. Each request runs in a fresh, locked-down child process
-// (see js-runner.mjs). Opt-in per server with ALLOW_JS_FUNCTIONS=1.
+// (see js-runner.mjs). On by default; disable with ALLOW_JS_FUNCTIONS=0.
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';

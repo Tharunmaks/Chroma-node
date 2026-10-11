@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Pyre Torch · Chroma</title>
+<meta name="description" content="Pyre Torch: PyTorch-style tensors, autograd, neural networks and optimizers that run on the CPU in your browser or in Node. Try it in a live notebook.">
+<script type="module" src="/assets/js/torch.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main">
+  <header class="page-head">
+    <div class="subtle-grid"></div>
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Pyre Torch</p>
+        <h1>Deep learning on the CPU, <span class="grad">PyTorch-style.</span></h1>
+        <p class="lead">Tensors with broadcasting, reverse-mode autograd, <code>nn</code> modules, optimizers and data loaders — in plain JavaScript, no GPU or install needed. Write a <code>@kernel</code> in Pyre and it becomes a tensor op. This notebook runs entirely in your browser.</p>
+        <div class="row">
+          <div class="install" data-copy-root><code>import torch from 'pyre-lang/torch'</code><button class="copy" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="code">
+        <div class="code-head"><span class="dots"><i></i><i></i><i></i></span>train.mjs</div>
+<pre class="src" id="hero-code"></pre>
+      </div>
+    </div>
+  </header>
+  <section class="wrap notebook-wrap">
+    <div class="nb-bar">
+      <label class="sr-only" for="nb-example">Notebook</label>
+      <select id="nb-example" class="btn small"></select>
+      <button class="btn small primary" id="run-all">▶ Run all</button>
+      <button class="btn small" id="restart" title="Stops running code and clears all variables">Restart kernel</button>
+      <button class="btn small" id="add-cell">+ Cell</button>
+      <span class="spacer"></span>
+      <span class="small dim" id="kernel-state">Kernel ready</span>
+    </div>
+    <div id="cells" class="cells"></div>
+    <p class="small dim">Cells run in a Web Worker with no network access. Top-level <code>const</code>/<code>let</code> names are shared between cells. Helpers: <code>print</code>, <code>plot(name, values)</code>, <code>boundary(model, X, Y)</code>, <code>datasets.spirals|moons|blobs|sine</code>, <code>sleep</code>.</p>
+  </section>
+</main>
+<!--#footer-->
+</body>
+</html>

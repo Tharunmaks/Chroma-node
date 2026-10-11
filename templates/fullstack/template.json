@@ -1,0 +1,1 @@
+{ "name": "Full-stack 3D app", "description": "A realtime guestbook with the built-in database, a JS server function, live analytics events and a 4D model from the library.", "collections": [{ "name": "guestbook", "read": "public", "write": "create" }] }

@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 
 export const PLANES = ['xy', 'xz', 'xw', 'yz', 'yw', 'zw'];
+const tmp = new THREE.Color();
 const AXIS = { x: 0, y: 1, z: 2, w: 3 };
 
 export class Polytope4D extends THREE.Group {
@@ -24,7 +25,7 @@ export class Polytope4D extends THREE.Group {
     this.angles = Object.fromEntries(PLANES.map((p) => [p, 0]));
     this.speeds = { xy: 0, xz: 0.11, xw: 0.37, yz: 0, yw: 0.23, zw: 0.29 };
     this.distance = 2.4; // 4D camera distance on the w axis
-    this.scale3 = 1.35;
+    this.scale3 = 1.8;
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
@@ -62,7 +63,6 @@ export class Polytope4D extends THREE.Group {
         w[k + j] = s * x + c * y;
       }
     }
-    const tmp = new THREE.Color();
     for (let v = 0; v < this.count; v++) {
       const k = v * 4;
       const f = (this.distance / (this.distance - w[k + 3])) * this.scale3 / 2;
@@ -70,7 +70,9 @@ export class Polytope4D extends THREE.Group {
       this.positions[v * 3 + 1] = w[k + 1] * f;
       this.positions[v * 3 + 2] = w[k + 2] * f;
       tmp.copy(this.colorB).lerp(this.colorA, (w[k + 3] + 1) / 2);
-      this.colors.set([tmp.r, tmp.g, tmp.b], v * 3);
+      this.colors[v * 3] = tmp.r;
+      this.colors[v * 3 + 1] = tmp.g;
+      this.colors[v * 3 + 2] = tmp.b;
     }
     const g = this.lines.geometry;
     g.attributes.position.needsUpdate = true;

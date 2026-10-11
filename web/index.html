@@ -15,9 +15,9 @@
     <canvas class="stage" aria-hidden="true"></canvas>
     <div class="wrap">
       <div class="hero-copy">
-        <a class="pill reveal" href="/docs#pyre"><b>NEW</b> Pyre 1.0 — GPU code in Python syntax →</a>
+        <a class="pill reveal" href="/models"><b>NEW</b> 109,630 3D &amp; 4D models · Pyre Torch · live analytics →</a>
         <h1 class="reveal d1">Build, shade &amp; ship <span class="grad">3D for the web.</span></h1>
-        <p class="lead reveal d2">Chroma is a deploy platform, a 3D engine and a GPU language in one Node.js package. Write shaders and compute kernels in <strong>Pyre</strong>, render them with <strong>Helix</strong>, and push to production with a single command.</p>
+        <p class="lead reveal d2">Chroma is a deploy platform, a 3D engine and a GPU language in one Node.js package. Write shaders, kernels and neural networks in <strong>Pyre</strong>, render 100,000+ models with <strong>Helix</strong>, and ship with a database, server functions and live analytics built in.</p>
         <div class="row reveal d3">
           <a class="btn primary" href="/playground">Open the playground
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
@@ -28,9 +28,9 @@
           <button class="copy" data-copy>Copy</button>
         </div>
         <div class="hero-stats reveal d3">
+          <div><b>109,630</b>3D &amp; 4D models</div>
           <div><b>3</b>GPU targets: GLSL · WGSL · JS</div>
           <div><b>1</b>command to deploy</div>
-          <div><b>0</b>pixels different, GPU vs CPU</div>
         </div>
       </div>
     </div>
@@ -101,6 +101,22 @@ engine.<span class="f">start</span>();</pre>
     </div>
   </section>
 
+
+  <!-- Models -->
+  <section class="section" id="models">
+    <div class="wrap">
+      <div class="row">
+        <div>
+          <p class="eyebrow reveal">Model library</p>
+          <h2 class="title reveal">109,630 models in <span class="grad">three and four dimensions.</span></h2>
+          <p class="lead reveal">Supershapes, every coprime torus knot to 100 windings, spherical harmonics, Lissajous knots, superquadrics, seashells, all six regular 4-polytopes, duoprisms and Clifford torus knots that rotate through the fourth dimension. Each has a stable id; open it in the studio, edit it, save it, export it.</p>
+        </div>
+      </div>
+      <div class="model-strip reveal d1" id="strip"></div>
+      <p class="row reveal"><a class="btn" href="/models">Browse the library →</a><a class="btn ghost" href="/studio#pyre=1">Write a model in Pyre</a></p>
+    </div>
+  </section>
+
   <!-- Deploy -->
   <section class="section" id="deploy">
     <div class="wrap">
@@ -119,6 +135,21 @@ engine.<span class="f">start</span>();</pre>
           <div class="card glow tilt"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></div><h3>Pyre build step</h3><p><code>.pyre</code> files become <code>.glsl</code>, <code>.wgsl</code> and metadata. Kernels in <code>api/</code> become HTTP functions.</p></div>
           <div class="card glow tilt"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></div><h3>Instant rollback</h3><p>Production is a pointer. Move it to any previous deployment in one click or <code>chroma promote</code>.</p></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Platform -->
+  <section class="section tight" id="platform">
+    <div class="wrap">
+      <p class="eyebrow reveal">Platform</p>
+      <h2 class="title reveal">A backend you don't have to build.</h2>
+      <div class="feature-grid">
+        <a class="feature reveal" href="/platform#database"><span class="tag">database</span><h3>Realtime database</h3><p>Collections with access rules and live subscriptions, straight from your deployed page.</p></a>
+        <a class="feature reveal d1" href="/platform#functions"><span class="tag">compute</span><h3>Server functions</h3><p>JavaScript handlers and Pyre kernels in <code>api/</code>, sandboxed per request.</p></a>
+        <a class="feature reveal d2" href="/platform#analytics"><span class="tag">analytics</span><h3>Live analytics</h3><p>Visitors right now, traffic, referrers and events, streaming into your dashboard.</p></a>
+        <a class="feature reveal d3" href="/platform#deploys"><span class="tag">deploy</span><h3>Previews &amp; rollback</h3><p>Immutable deploys with preview URLs; move production back in one click.</p></a>
       </div>
     </div>
   </section>
@@ -146,6 +177,23 @@ engine.<span class="f">start</span>();</pre>
     -H 'content-type: application/json' \
     -d '{"uniforms":{"a":2},"buffers":{"x":[1,2,3],"y":[10,10,10]}}'</span>
 { <span class="s">"buffers"</span>: { <span class="s">"x"</span>: [1,2,3], <span class="s">"y"</span>: [<span class="n">12</span>,<span class="n">14</span>,<span class="n">16</span>] }, <span class="s">"ms"</span>: 0.4 }</pre>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Torch -->
+  <section class="section" id="torch">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow reveal">Pyre Torch</p>
+        <h2 class="title reveal">Train neural networks <span class="grad">like PyTorch, on any CPU.</span></h2>
+        <p class="lead reveal">Tensors with broadcasting, autograd, <code>nn</code> layers, Adam and data loaders, all gradient-checked. Runs in Node, in the browser, and in your Pyre Functions, and any Pyre <code>@kernel</code> can be used as a tensor op.</p>
+        <p class="row reveal"><a class="btn primary" href="/torch">Open the notebook</a><a class="btn" href="/docs#torch">Torch API</a></p>
+      </div>
+      <div class="code reveal d1">
+        <div class="code-head"><span class="dots"><i></i><i></i><i></i></span>spirals.mjs</div>
+<pre class="src" id="torch-code"></pre>
       </div>
     </div>
   </section>

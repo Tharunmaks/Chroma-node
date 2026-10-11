@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Platform · Chroma</title>
+<meta name="description" content="Chroma's platform: immutable deploys with previews and rollback, a built-in realtime database, Pyre and JavaScript server functions, and privacy-friendly real-time analytics. Self-hosted.">
+<script type="module" src="/assets/js/platform.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main">
+  <header class="page-head">
+    <div class="subtle-grid"></div>
+    <div class="wrap">
+      <p class="eyebrow">Platform</p>
+      <h1>Deploy, store, compute, <span class="grad">measure.</span></h1>
+      <p class="lead">Everything a 3D web app needs after the code is written, in one self-hosted Node.js server: deployments, a realtime database, server functions and live analytics. No third-party services, no tracking scripts.</p>
+      <nav class="toc" aria-label="On this page">
+        <a class="chip" href="#deploys">Deployments</a>
+        <a class="chip" href="#database">Database</a>
+        <a class="chip" href="#functions">Server functions</a>
+        <a class="chip" href="#analytics">Analytics</a>
+        <a class="chip" href="#selfhost">Self-hosting</a>
+      </nav>
+      <div class="feature-grid">
+        <div class="feature"><span class="tag">deploy</span><h3>Immutable deploys</h3><p>Every upload is a content-addressed snapshot with its own preview URL; production is a pointer you can move back instantly.</p></div>
+        <div class="feature"><span class="tag">database</span><h3>Realtime database</h3><p>JSON collections in SQLite with public/create/private rules, queries and live change streams over SSE.</p></div>
+        <div class="feature"><span class="tag">compute</span><h3>Server functions</h3><p><code>api/*.pyre</code> kernels and <code>api/*.js</code> handlers become endpoints, each run in an isolated sandbox.</p></div>
+        <div class="feature"><span class="tag">analytics</span><h3>Live analytics</h3><p>Views, unique visitors, referrers, devices, functions and custom events — streaming into your dashboard as they happen.</p></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="platform-sec" id="deploys">
+    <div class="wrap split">
+      <div>
+        <h2 class="section-title">Deployments with previews and instant rollback</h2>
+        <p class="muted">Drag a folder onto the dashboard, run <code>chroma deploy</code>, or click <em>Deploy</em> in the playground. Pyre shaders compile during the build; a failing shader fails the build and production stays as it was. Clean URLs, custom 404 pages, SPA mode and <code>&lt;project&gt;.your-domain</code> hosting are built in.</p>
+        <ul class="muted small">
+          <li>Content-addressed storage: unchanged files cost nothing to redeploy</li>
+          <li>Every deployed file runs in a sandboxed origin, isolated from your account</li>
+          <li>Promote any READY deployment; the last 30 are kept</li>
+        </ul>
+      </div>
+      <div class="code terminal"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>terminal</div>
+<pre><span class="t-prompt">❯</span> chroma deploy
+<span class="t-dim">› uploading 9 files (31.0 KB)</span>
+<span class="t-dim">›</span> shaders/lava.pyre <span class="t-ok">@fragment → glsl, wgsl</span>
+<span class="t-dim">›</span> api/saxpy.pyre <span class="t-ok">@kernel → /api/fn/my-app/saxpy</span>
+<span class="t-dim">›</span> api/guestbook.js <span class="t-ok">JS server function → /api/fn/my-app/guestbook</span>
+<span class="t-ok">✓ READY</span> in 38 ms
+  production  <span class="t-link">https://chroma.example.com/p/my-app/</span>
+<span class="t-prompt">❯</span> chroma rollback my-app
+<span class="t-ok">✓</span> rolled my-app back to dpl_Xq3v9Lk2</pre></div>
+    </div>
+  </section>
+
+  <section class="platform-sec" id="database">
+    <div class="wrap split">
+      <div>
+        <h2 class="section-title">A realtime database, no setup</h2>
+        <p class="muted">Each project gets JSON document collections stored in SQLite. Rules decide what your deployed pages may do: <strong>public</strong> reads for leaderboards and galleries, <strong>create-only</strong> writes for forms and guestbooks, or <strong>owner-only</strong> for anything private (use your API token from servers and CI). Subscribe to a collection and changes arrive instantly.</p>
+        <table class="params">
+          <tr><td>Queries</td><td><code>where=score:gte:10</code>, <code>order=-score</code>, <code>limit</code>, <code>offset</code></td></tr>
+          <tr><td>Realtime</td><td>Server-Sent Events: <code>add</code>, <code>update</code>, <code>delete</code></td></tr>
+          <tr><td>Limits</td><td>50 collections, 10,000 docs each, 16 KB per document</td></tr>
+        </table>
+      </div>
+      <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>guestbook.js — in your deployed site</div>
+<pre class="src" id="code-db"></pre></div>
+    </div>
+  </section>
+
+  <section class="platform-sec" id="functions">
+    <div class="wrap split">
+      <div>
+        <h2 class="section-title">Server functions in Pyre or JavaScript</h2>
+        <p class="muted"><strong>Pyre functions</strong> run <code>@kernel</code> programs on the server's CPU: numeric work like simulations or signal processing, always on. <strong>JavaScript functions</strong> are ordinary request handlers with access to your project's database; each request runs in a fresh process under Node's permission model (no filesystem, no subprocesses, no network), with code generation disabled, a string-only bridge to the host and time and memory limits. Administrators can turn JS functions off with <code>ALLOW_JS_FUNCTIONS=0</code>.</p>
+      </div>
+      <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>api/guestbook.js</div>
+<pre class="src" id="code-fn"></pre></div>
+    </div>
+  </section>
+
+  <section class="platform-sec" id="analytics">
+    <div class="wrap split">
+      <div>
+        <h2 class="section-title">Analytics that update while you watch</h2>
+        <p class="muted">Page views are counted on the server, so there is no tracking script to add or block. Visitors are identified by an HMAC of IP, user agent and project with a salt that rotates daily, so no cookies or raw IPs are stored. The dashboard streams every request live: visitors right now, traffic over time, top pages, referrers, devices, status codes, function calls and your own custom events.</p>
+        <div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>custom events</div><pre class="src" id="code-track"></pre></div>
+      </div>
+      <div class="panel panel-body">
+        <div class="mock-kpis">
+          <div class="kpi-card live"><span><span class="live-dot pulse" id="demo-dot"></span>Visitors now</span><b id="demo-live">12</b></div>
+          <div class="kpi-card"><span>Page views · 1h</span><b id="demo-views">1,284</b></div>
+          <div class="kpi-card"><span>Function calls</span><b id="demo-fn">316</b></div>
+        </div>
+        <p class="small dim">Simulated data — your dashboard shows your real traffic.</p>
+        <div id="demo-chart"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="platform-sec" id="selfhost">
+    <div class="wrap split">
+      <div>
+        <h2 class="section-title">Yours to run</h2>
+        <p class="muted">Chroma is a single Node.js 22 process with SQLite and a folder of files. Run it on a laptop, a $5 VPS or in Docker behind any TLS proxy. Back up one directory.</p>
+        <p class="row"><a class="btn primary" href="/dashboard#new">Create a project</a><a class="btn" href="/docs#selfhost">Self-hosting guide</a></p>
+      </div>
+      <div class="code terminal"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span>server</div>
+<pre><span class="t-prompt">❯</span> docker compose up -d
+<span class="t-prompt">❯</span> CHROMA_HTTPS=1 TRUST_PROXY=1 \
+  DATA_DIR=/var/lib/chroma npm start
+  <span class="t-ok">◆ Chroma 1.1.0</span> running at http://0.0.0.0:3000</pre></div>
+    </div>
+  </section>
+</main>
+<!--#footer-->
+</body>
+</html>

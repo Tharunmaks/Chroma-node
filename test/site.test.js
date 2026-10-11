@@ -8,7 +8,7 @@ before(async () => { srv = await boot(); });
 after(async () => { await srv.stop(); });
 
 test('every page is served with a strict CSP whose hash matches the inline import map', async () => {
-  for (const p of ['/', '/playground', '/docs', '/dashboard', '/engine']) {
+  for (const p of ['/', '/playground', '/docs', '/dashboard', '/engine', '/models', '/studio', '/torch', '/platform']) {
     const res = await fetch(srv.url + p);
     assert.equal(res.status, 200, p);
     const csp = res.headers.get('content-security-policy');
@@ -38,9 +38,12 @@ test('libraries are served for the browser and for sandboxed deployments', async
   assert.equal((await fetch(`${srv.url}/assets/js/common.js`, { headers: { 'if-none-match': etag } })).status, 304);
 });
 
-test('the CPU worker is the only script allowed to eval, and it has no network access', async () => {
-  const res = await fetch(`${srv.url}/assets/js/pyre-worker.js`);
-  assert.equal(res.headers.get('content-security-policy'), "default-src 'none'; script-src 'self' 'unsafe-eval'");
+test('only the CPU workers may eval, and they have no network access', async () => {
+  for (const w of ['pyre-worker', 'torch-worker']) {
+    const res = await fetch(`${srv.url}/assets/js/${w}.js`);
+    assert.equal(res.headers.get('content-security-policy'), "default-src 'none'; script-src 'self' 'unsafe-eval'", w);
+  }
+  assert.match((await fetch(`${srv.url}/assets/js/common.js`)).headers.get('content-security-policy'), /script-src 'self'(?! 'unsafe-eval')/);
 });
 
 test('static file serving cannot escape its directories', async () => {
@@ -79,4 +82,25 @@ test('every shader and kernel shipped with the site and templates compiles', asy
   for (const f of ['templates/helix-starter/shaders/lava.pyre', 'templates/helix-starter/api/saxpy.pyre']) {
     assert.ok(compileAll(fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')).meta.entry, f);
   }
+});
+
+test('the Helix catalogue has 100,000+ models that all build into valid geometry', async () => {
+  const C = await import('../web/assets/js/helix/catalog.js');
+  assert.ok(C.TOTAL > 100000, `TOTAL ${C.TOTAL}`);
+  assert.equal(C.TOTAL, C.FAMILIES.reduce((s, f) => s + f.count, 0));
+  assert.ok(C.TOTAL_4D > 15000);
+  for (const f of C.FAMILIES) {
+    for (const i of [0, Math.floor(f.count / 3), f.count - 1]) {
+      const m = C.get(`${f.id}/${i}`);
+      assert.equal(m.id, `${f.id}/${i}`);
+      const o = C.build(f.id, m.params, { quality: 'low' });
+      const arr = o.isPolytope4D ? (o.update(0.3), o.positions) : o.geometry.attributes.position.array;
+      assert.ok(arr.length > 0 && arr.every(Number.isFinite), `${m.id} has finite vertices`);
+    }
+  }
+  const counts = [0, 1, 2, 3, 4, 5].map((k) => { const o = C.build('polytope', { kind: k }); return [o.count, o.lines.geometry.index.count / 2]; });
+  assert.deepEqual(counts, [[5, 10], [16, 32], [8, 24], [24, 96], [120, 720], [600, 1200]], 'regular 4-polytope vertex/edge counts');
+  assert.ok(C.search('duoprism 7 9').some((m) => m.label === '7-9 duoprism'));
+  assert.equal(C.get('knot/999999999'), null);
+  assert.equal(C.get(C.TOTAL + 5).id, C.get(5).id);
 });

@@ -139,7 +139,7 @@ test('JS server functions are sandboxed', async () => {
 });
 
 test('JS server functions can be disabled per server and bad code fails the build', async () => {
-  const off = await boot();
+  const off = await boot({ allowJsFunctions: false });
   try {
     const c = new Client(off.url);
     await c.signup('someone', 'unique pass phrase 42');

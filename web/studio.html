@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Studio · Chroma</title>
+<meta name="description" content="Edit any of 100,000+ procedural 3D/4D models or write your own in Pyre. Materials, 4D rotation, bloom, glTF/OBJ export and saving to your account.">
+<script type="module" src="/assets/js/studio.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main" class="studio-app">
+  <section class="studio-stage">
+    <div class="viewport" id="stage">
+      <canvas aria-label="Studio viewport: drag to orbit, scroll to zoom"></canvas>
+      <span class="badge-live" id="stage-info">Studio</span>
+      <div class="hud">
+        <button class="chip" id="t-rotate" aria-pressed="true">Auto-rotate</button>
+        <button class="chip" id="t-bloom" aria-pressed="false">Bloom</button>
+        <button class="chip" id="t-wire" aria-pressed="false">Wireframe</button>
+        <button class="chip" id="t-stars" aria-pressed="true">Stars</button>
+      </div>
+    </div>
+    <div class="stage-bar">
+      <b id="title">Model</b><span class="dim small" id="subtitle"></span>
+      <span class="spacer"></span>
+      <button class="btn small" id="prev" aria-label="Previous model">←</button>
+      <button class="btn small" id="next" aria-label="Next model">→</button>
+      <button class="btn small" id="rand">🎲 Random</button>
+    </div>
+  </section>
+  <aside class="panel studio-panel" aria-label="Inspector">
+    <div class="seg full" role="tablist" id="mode">
+      <button role="tab" aria-selected="true" data-mode="catalog">Library model</button>
+      <button role="tab" aria-selected="false" data-mode="pyre">Write in Pyre</button>
+    </div>
+
+    <details open id="sec-model"><summary>Model</summary>
+      <div class="form">
+        <label>Family<select id="family"></select></label>
+        <label>Catalog index<input id="index" type="number" min="0" step="1"></label>
+        <div id="params" class="form"></div>
+      </div>
+    </details>
+
+    <details open id="sec-pyre" hidden><summary>Pyre source</summary>
+      <div class="form">
+        <p class="small muted">Return a point for every <code>u, v</code> in 0..1. Use <code>surface</code> for 3D or <code>surface4</code> (returning <code>vec4</code>) for a 4D model.</p>
+        <div id="pyre-editor" class="mini-editor"></div>
+        <div class="row"><select id="pyre-example" class="btn small"></select><span class="spacer"></span><button class="btn small primary" id="pyre-build">Build ⌘↵</button></div>
+        <label>Resolution <input type="range" id="pyre-seg" min="16" max="300" step="4" value="140"></label>
+        <div class="diag" id="pyre-diag"></div>
+      </div>
+    </details>
+
+    <details open><summary>Material</summary>
+      <div class="form">
+        <label>Material<select id="material"></select></label>
+        <label>Colour<input type="color" id="color" value="#b9a6ff"></label>
+      </div>
+    </details>
+
+    <details id="sec-4d" hidden open><summary>4D rotation</summary>
+      <div class="form" id="planes"></div>
+    </details>
+
+    <details open><summary>Save &amp; export</summary>
+      <div class="form">
+        <label>Name<input id="name" maxlength="80" placeholder="My model"></label>
+        <label class="check"><input type="checkbox" id="public"> Share in the community gallery</label>
+        <div class="row">
+          <button class="btn small primary" id="save">Save to my models</button>
+          <button class="btn small" id="export-glb">.glb</button>
+          <button class="btn small" id="export-obj">.obj</button>
+          <button class="btn small" id="export-png">.png</button>
+        </div>
+        <div id="save-msg"></div>
+        <button class="btn small ghost" id="copy-code">Copy code for my site</button>
+      </div>
+    </details>
+
+    <details><summary>My models</summary>
+      <div id="mine" class="mine"><p class="small muted">Sign in to save models to your account.</p></div>
+    </details>
+  </aside>
+</main>
+</body>
+</html>

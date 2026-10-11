@@ -3,7 +3,9 @@
 import { highlightPyre } from './common.js';
 
 export class Editor {
-  constructor(root, { value = '', onChange, onRun } = {}) {
+  constructor(root, { value = '', onChange, onRun, highlight = highlightPyre, label = 'Pyre source code', comment = '#' } = {}) {
+    this.highlight = highlight;
+    this.commentToken = comment;
     this.root = root;
     root.classList.add('editor');
     this.gutter = document.createElement('div');
@@ -17,7 +19,7 @@ export class Editor {
     this.ta.spellcheck = false;
     this.ta.autocapitalize = 'off';
     this.ta.setAttribute('autocorrect', 'off');
-    this.ta.setAttribute('aria-label', 'Pyre source code');
+    this.ta.setAttribute('aria-label', label);
     area.append(this.pre, this.ta);
     root.append(this.gutter, area);
     this.errorLine = 0;
@@ -40,7 +42,7 @@ export class Editor {
 
   render() {
     const lines = this.ta.value.split('\n');
-    const html = highlightPyre(this.ta.value).split('\n');
+    const html = this.highlight(this.ta.value).split('\n');
     if (this.errorLine > 0 && this.errorLine <= html.length) html[this.errorLine - 1] = `<span class="errline">${html[this.errorLine - 1] || ' '}</span>`;
     this.pre.innerHTML = html.join('\n') + '\n';
     this.gutter.innerHTML = lines.map((_, i) => (i + 1 === this.errorLine ? `<span class="bad">${i + 1}</span>` : String(i + 1))).join('\n') + '\n';
@@ -84,7 +86,7 @@ export class Editor {
       const lineStart = v.lastIndexOf('\n', s - 1) + 1;
       const line = v.slice(lineStart, s);
       let indent = line.match(/^ */)[0];
-      if (/:\s*(#.*)?$/.test(line)) indent += '    ';
+      if (this.commentToken === '#' ? /:\s*(#.*)?$/.test(line) : /[{([]\s*(\/\/.*)?$/.test(line)) indent += this.commentToken === '#' ? '    ' : '  ';
       else if (/^\s*(return|break|continue|pass)\b/.test(line)) indent = indent.slice(4);
       this.replaceRange(s, t, '\n' + indent);
       return;
@@ -104,8 +106,10 @@ export class Editor {
       let lineEnd = v.indexOf('\n', t);
       if (lineEnd < 0) lineEnd = v.length;
       const lines = v.slice(lineStart, lineEnd).split('\n');
-      const allCommented = lines.every((l) => /^\s*#/.test(l) || !l.trim());
-      const out = lines.map((l) => (allCommented ? l.replace(/^(\s*)# ?/, '$1') : l.replace(/^(\s*)/, '$1# '))).join('\n');
+      const tok = this.commentToken;
+      const esc = tok.replace(/\//g, '\\/');
+      const allCommented = lines.every((l) => new RegExp(`^\\s*${esc}`).test(l) || !l.trim());
+      const out = lines.map((l) => (allCommented ? l.replace(new RegExp(`^(\\s*)${esc} ?`), '$1') : l.replace(/^(\s*)/, `$1${tok} `))).join('\n');
       this.replaceRange(lineStart, lineEnd, out, lineStart, lineStart + out.length);
     }
   }

@@ -30,7 +30,10 @@ export const THREE_DIR = path.resolve(path.dirname(require.resolve('three')), '.
 export const PYRE_DIR = path.dirname(require.resolve('pyre-lang'));
 export const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 
-const PAGES = { '/': 'index.html', '/playground': 'playground.html', '/docs': 'docs.html', '/dashboard': 'dashboard.html', '/engine': 'engine.html' };
+const PAGES = {
+  '/': 'index.html', '/playground': 'playground.html', '/docs': 'docs.html', '/dashboard': 'dashboard.html', '/engine': 'engine.html',
+  '/models': 'models.html', '/studio': 'studio.html', '/torch': 'torch.html', '/platform': 'platform.html',
+};
 
 /** Public static trees: URL prefix -> directory. Shared with the dev server. */
 export const STATIC_TREES = [
@@ -112,7 +115,7 @@ export function createApp(options = {}) {
     https: !!options.https,
     trustProxy: !!options.trustProxy,
     allowSignup: options.allowSignup !== false,
-    allowJsFunctions: !!options.allowJsFunctions,
+    allowJsFunctions: options.allowJsFunctions !== false,
     domain: options.domain || null, // serve <project>.<domain> when set
     log: options.log !== false,
   };
@@ -317,6 +320,9 @@ export function createApp(options = {}) {
     const p = deploys.ownedProject(user, ctx.params.name);
     const files = readTemplate(ctx.params.template);
     const d = deploys.create(user, p, files, { target: 'production', source: `template:${ctx.params.template}` });
+    // templates may declare database collections they expect
+    const info = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, ctx.params.template, 'template.json'), 'utf8'));
+    for (const c of info.collections || []) pdb.setRules(p.id, c.name, { read: c.read, write: c.write });
     store.audit('deployment.created', { userId: user.id, ip: ctx.ip, detail: { project: p.name, id: d.id, template: ctx.params.template } });
     sendJSON(ctx.res, 201, { deployment: { ...deploys.summary(d, p), log: d.log }, production: `/p/${p.name}/` });
   });
@@ -401,7 +407,7 @@ export function createApp(options = {}) {
         sendJSON(res, 200, { buffers: result.buffers, ms: result.ms });
         return;
       }
-      if (!cfg.allowJsFunctions) throw new HttpError(501, 'JS server functions are disabled on this server (start it with ALLOW_JS_FUNCTIONS=1)');
+      if (!cfg.allowJsFunctions) throw new HttpError(501, 'JS server functions are disabled on this server (it was started with ALLOW_JS_FUNCTIONS=0)');
       let body = null;
       if (req.method !== 'GET' && req.method !== 'DELETE') {
         const raw = await readBody(req, 1024 * 1024);
@@ -757,7 +763,7 @@ export function createApp(options = {}) {
       }
 
       const headers = siteHeaders({ https: cfg.https });
-      if (pathname === '/assets/js/pyre-worker.js') {
+      if (/^\/assets\/js\/[a-z]+-worker\.js$/.test(pathname)) {
         // the CPU worker may evaluate Pyre's generated JS, but nothing else:
         // no network, no DOM (it's a worker), and the page CSP stays eval-free
         headers['Content-Security-Policy'] = "default-src 'none'; script-src 'self' 'unsafe-eval'";

@@ -43,6 +43,31 @@ generated JavaScript only inside `/assets/js/pyre-worker.js`, a Web Worker serve
   96 MB heap, 20M loop iterations, ≤ 1M buffer elements and validated numeric inputs.
 * Public, rate limited (60/min per IP), CORS-enabled without credentials.
 
+## Project databases (`server/database.js`)
+
+* Per-collection rules: `read` public/private, `write` public/create/private. Private collections
+  are never readable or writable from deployed pages; an owner's API token (Bearer) is required.
+* SQL is always parameterised; field names in filters and ordering must match
+  `[A-Za-z_][A-Za-z0-9_]*`; document keys may not start with `_` or be `constructor`/`prototype`.
+* 16 KB per document, 10,000 documents per collection, 50 collections, 300 requests/min per IP.
+
+## JS server functions (`server/js-functions.js`, `server/js-runner.mjs`)
+
+Each request gets a **new child process** started with `--permission` (no filesystem beyond the
+runner file, no child processes, workers or addons), `--disallow-code-generation-from-strings` and a
+64 MB heap. User code runs in a separate V8 context whose only link to the host is a bridge compiled
+*inside* that context exchanging JSON strings, so host objects and the host `Function` constructor
+are unreachable; `process`, `require`, `fetch` and timers do not exist there. The parent kills the
+process after 5 s, caps database calls (200) and response size (1 MB), and strips `Set-Cookie`,
+CSP, CORS and HSTS headers from responses. Tests cover `Function`-constructor escapes, `eval`,
+infinite loops and memory bombs. Disable entirely with `ALLOW_JS_FUNCTIONS=0`.
+
+## Analytics (`server/analytics.js`)
+
+No cookies and no raw IP addresses are stored. A visitor id is
+`HMAC-SHA256(daily salt, ip | user-agent | project)` truncated to 64 bits; salts rotate daily and
+are deleted after two days, so visitors cannot be linked across days. Events are kept 31 days.
+
 ## Reporting a vulnerability
 
 Please use GitHub's private advisory form (Security → Report a vulnerability) instead of a public issue.

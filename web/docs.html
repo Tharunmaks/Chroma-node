@@ -17,6 +17,10 @@
       <b>Platform</b>
       <a href="#deployments">Deployments</a>
       <a href="#functions">Pyre Functions</a>
+      <a href="#js-functions">JS server functions</a>
+      <a href="#database">Database</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#sdk">Browser SDK</a>
       <a href="#api">REST API</a>
       <b>Pyre language</b>
       <a href="#pyre">Overview</a>
@@ -24,15 +28,17 @@
       <a href="#pyre-flow">Control flow</a>
       <a href="#pyre-entry">Entry points</a>
       <a href="#pyre-builtins">Built-ins &amp; stdlib</a>
+      <a href="#torch">Pyre Torch</a>
       <b>Helix engine</b>
       <a href="#helix">Helix API</a>
+      <a href="#catalog">Model library</a>
       <b>Operations</b>
       <a href="#security">Security model</a>
       <a href="#selfhost">Self-hosting</a>
     </nav>
     <article>
       <h2 id="start">Getting started</h2>
-      <p>Chroma is one Node.js package (Node 20+) containing the platform server, the <code>chroma</code> CLI, the Helix 3D engine and the Pyre compiler.</p>
+      <p>Chroma is one Node.js package (Node 22.5+, which ships SQLite) containing the platform server, the <code>chroma</code> CLI, the Helix 3D engine and the Pyre compiler.</p>
       <pre><code>npm i -g github:Tharunmaks/Chroma-node
 
 chroma server                 # start the platform on http://127.0.0.1:3000
@@ -94,6 +100,48 @@ fn saxpy(id: int):
 200 { "buffers": { "x": [1, 2, 3], "y": [12, 14, 16] }, "ms": 0.4 }</code></pre>
       <p>Buffers are arrays of numbers or a length (zero-filled). <code>count</code> (threads) defaults to the longest buffer. Each call runs in a fresh worker thread with a 3 s timeout, a 96 MB heap, a 20M-iteration loop budget and at most 1M buffer elements. CORS is open so deployed pages can call their functions.</p>
 
+
+      <h2 id="js-functions">JS server functions</h2>
+      <p>Any <code>api/*.js</code> file that <code>export default</code>s a handler becomes an endpoint at <code>/api/fn/&lt;project&gt;/&lt;name&gt;</code> (any HTTP method). Handlers get the request and your project's database:</p>
+      <pre><code>// api/guestbook.js
+export default async function (req, { db }) {
+  // req: { method, path, query, headers, body }   (body is parsed JSON when sent as JSON)
+  if (req.method === 'POST') {
+    const doc = await db.collection('guestbook').add({ message: String(req.body.message).slice(0, 280) });
+    return { status: 201, json: doc };
+  }
+  const { docs, total } = await db.collection('guestbook').list({ order: '-_created', limit: 10 });
+  return { json: { total, docs }, headers: { 'Cache-Control': 'no-store' } };
+}</code></pre>
+      <p>Return <code>{ status, json }</code>, <code>{ status, body, headers }</code>, or any plain value (sent as JSON). <code>db.collection(name)</code> offers <code>list(query)</code>, <code>get(id)</code>, <code>add(doc)</code>, <code>set(id, doc)</code>, <code>update(id, partial)</code> and <code>remove(id)</code>, with owner rights. <code>console.log</code> output is captured.</p>
+      <p><strong>Isolation:</strong> every request runs in a fresh child process with Node's permission model (no filesystem, subprocesses, workers or native addons), code generation from strings disabled, and a separate V8 context that talks to the host only through JSON strings, so no host object is reachable. Limits: 5 s, 64 MB heap, 200 database calls, 1 MB response. Functions cannot set cookies or security headers, and have no network access. Admins can disable JS functions with <code>ALLOW_JS_FUNCTIONS=0</code>.</p>
+
+      <h2 id="database">Database</h2>
+      <p>Each project has JSON document collections (SQLite underneath). Create them in <em>Dashboard → project → Database</em>, set rules, browse and edit documents.</p>
+      <table>
+        <tr><th>Rule</th><th>Values</th></tr>
+        <tr><td>read</td><td><code>public</code> (anyone can list/get) · <code>private</code> (owner only)</td></tr>
+        <tr><td>write</td><td><code>public</code> (anyone can add/edit/delete) · <code>create</code> (anyone can add, nobody can edit — forms, guestbooks) · <code>private</code></td></tr>
+      </table>
+      <p>Public endpoints for deployed pages (CORS-enabled): <code>GET/POST /api/db/&lt;project&gt;/&lt;collection&gt;</code>, <code>GET/PUT/PATCH/DELETE …/&lt;id&gt;</code> and <code>GET …/stream</code> (Server-Sent Events: <code>add</code>, <code>update</code>, <code>delete</code>, <code>clear</code>). Queries: <code>where=field:op:value</code> (ops <code>eq ne gt gte lt lte contains</code>, repeatable), <code>order=field</code> or <code>-field</code> (also <code>_created</code>, <code>_updated</code>), <code>limit</code> (≤ 100), <code>offset</code>. Sending your API token as <code>Authorization: Bearer chr_…</code> bypasses the rules (server-to-server). Limits: 50 collections, 10,000 documents each, 16 KB per document; field names may not start with <code>_</code>.</p>
+
+      <h2 id="analytics">Analytics</h2>
+      <p>Requests to a project's production URL are counted on the server: page views (HTML and 404s), unique visitors, referrers (host only), device class, status codes, response time, function calls, database calls and custom events. Visitors are an HMAC of IP + user agent + project with a salt that rotates daily, so no cookies or raw IPs are stored; bots are excluded from visitor counts. Data is kept 31 days.</p>
+      <p>The dashboard's <em>Analytics</em> tab streams every hit live (<code>GET /api/projects/:name/analytics/stream</code>, SSE) and summarises <code>1h</code>, <code>24h</code>, <code>7d</code> or <code>30d</code> (<code>GET /api/projects/:name/analytics?range=24h</code>). Send custom events from your page with <code>POST /api/a/&lt;project&gt;/event {"name": "signup"}</code> or the SDK.</p>
+
+      <h2 id="sdk">Browser SDK</h2>
+      <pre><code>import { chroma } from '/assets/js/chroma-sdk.js';
+const app = chroma();                         // project detected from /p/&lt;name&gt;/ or the subdomain
+
+const book = app.db('guestbook');
+await book.add({ name: 'Ada', message: 'hi' });
+const { docs, total } = await book.list({ where: ['stars:gte:4'], order: '-_created', limit: 20 });
+const stop = book.subscribe(({ type, doc, id }) => console.log(type, doc ?? id));
+
+const stats = await app.fn('stats', { method: 'GET' });            // JS function
+const out = await app.fn('saxpy', { body: { uniforms: { a: 2 }, buffers: { x: [1, 2], y: [3, 4] } } });  // Pyre function
+app.track('signup');                          // custom analytics event</code></pre>
+
       <h2 id="api">REST API</h2>
       <p>JSON in, JSON out. Authenticate with the session cookie (browsers; writes also need the <code>X-CSRF-Token</code> from <code>/api/me</code>) or <code>Authorization: Bearer chr_…</code>.</p>
       <table>
@@ -111,8 +159,16 @@ fn saxpy(id: int):
         <tr><td><code>POST /api/projects/:name/promote</code></td><td><code>{ deploymentId }</code> — promote / roll back</td></tr>
         <tr><td><code>GET/DELETE /api/deployments/:id</code></td><td>Build log and file list / delete (not the production one)</td></tr>
         <tr><td><code>GET /api/audit</code></td><td>Your last 100 security events</td></tr>
+        <tr><td><code>GET /api/projects/:name/analytics[/stream]</code></td><td>Analytics summary (<code>?range=1h|24h|7d|30d</code>) / live SSE feed</td></tr>
+        <tr><td><code>GET/POST /api/projects/:name/db</code></td><td>List collections / create <code>{ name, read, write }</code></td></tr>
+        <tr><td><code>PUT /api/projects/:name/db/:col/rules</code> · <code>DELETE …/db/:col</code></td><td>Change rules / drop a collection</td></tr>
+        <tr><td><code>GET …/db/:col</code> · <code>POST …/db/:col/docs</code> · <code>DELETE …/docs/:id</code></td><td>Owner document access</td></tr>
+        <tr><td><code>/api/db/:project/:col[/:id|/stream]</code></td><td>Public database API (follows rules)</td></tr>
+        <tr><td><code>POST /api/a/:project/event</code></td><td>Custom analytics event <code>{ name }</code></td></tr>
+        <tr><td><code>GET/POST /api/models</code> · <code>GET/PUT/DELETE /api/models/:id</code></td><td>Your saved models</td></tr>
+        <tr><td><code>GET /api/models/gallery</code></td><td>Public community models</td></tr>
         <tr><td><code>POST /api/compile</code></td><td><code>{ source }</code> → GLSL, WGSL, JS and metadata (public, rate limited)</td></tr>
-        <tr><td><code>POST /api/fn/:project/:name</code></td><td>Run a Pyre Function (public, rate limited)</td></tr>
+        <tr><td><code>/api/fn/:project/:name</code></td><td>Run a Pyre function (POST) or JS function (any method); public, rate limited</td></tr>
       </table>
 
       <h2 id="pyre">Pyre language</h2>
@@ -170,6 +226,19 @@ while n < 100 and dot(z, z) < 4.0:
         <tr><td><code>sdSphere sdBox sdTorus smin</code></td><td>Signed distance functions for raymarching</td></tr>
       </table>
 
+
+      <h3 id="torch">Pyre Torch</h3>
+      <p><code>import torch from 'pyre-lang/torch'</code> — PyTorch-style deep learning on the CPU (Node, browsers, workers, Pyre Functions). Try it in the <a href="/torch">notebook</a>.</p>
+      <table>
+        <tr><th>Area</th><th>API</th></tr>
+        <tr><td>Tensors</td><td><code>tensor zeros ones full rand randn randint arange linspace eye cat stack where</code>; <code>reshape view permute transpose T flatten squeeze unsqueeze narrow slice get gather indexSelect tolist item</code></td></tr>
+        <tr><td>Differentiable ops</td><td><code>add sub mul div pow neg exp log sqrt abs sin cos tanh sigmoid relu leakyRelu gelu clamp maximum minimum matmul</code> (batched, broadcasting), <code>sum mean std variance max min logsumexp softmax logSoftmax</code></td></tr>
+        <tr><td>Autograd</td><td><code>{ requiresGrad: true }</code>, <code>loss.backward()</code>, <code>.grad</code>, <code>torch.noGrad(fn)</code>, <code>detach()</code></td></tr>
+        <tr><td><code>nn</code></td><td>Callable modules: <code>Linear Embedding Sequential ReLU Tanh Sigmoid GELU LeakyReLU Softmax Dropout LayerNorm Flatten</code>; losses <code>mseLoss l1Loss crossEntropy nllLoss binaryCrossEntropy bceWithLogits</code>; <code>parameters() stateDict() loadStateDict() train() eval()</code></td></tr>
+        <tr><td><code>optim</code></td><td><code>SGD</code> (momentum, Nesterov), <code>Adam</code>, <code>AdamW</code>, <code>RMSprop</code>, <code>lrScheduler.StepLR / CosineAnnealingLR</code></td></tr>
+        <tr><td>Data &amp; utils</td><td><code>data.TensorDataset</code>, <code>data.DataLoader</code>, <code>data.spirals</code>, <code>manualSeed</code>, <code>save/load</code>, <code>accuracy</code>, <code>torch.kernel(pyreSource)</code></td></tr>
+      </table>
+
       <h2 id="helix">Helix engine API</h2>
       <p>Import from <code>'helix'</code> (pages on Chroma and deployed sites get an import map for <code>three</code>, <code>three/addons/</code>, <code>pyre</code> and <code>helix</code>).</p>
       <table>
@@ -188,6 +257,28 @@ while n < 100 and dot(z, z) < 4.0:
       </table>
       <p>Helix respects <code>prefers-reduced-motion</code> (slower time, no auto-rotate) and caps the pixel ratio for battery life.</p>
 
+
+      <h3 id="catalog">Model library</h3>
+      <p><code>import { build, get, search, FAMILIES, TOTAL } from 'helix/catalog.js'</code> — 109,630 procedurally generated models with stable ids (<code>family/index</code>), browsable in the <a href="/models">library</a> and editable in the <a href="/studio">studio</a>.</p>
+      <table>
+        <tr><th>Family</th><th>Models</th><th>What</th></tr>
+        <tr><td><code>supershape</code></td><td>16,384</td><td>Gielis superformula in two directions</td></tr>
+        <tr><td><code>knot</code></td><td>36,516</td><td>Every coprime (p, q) torus knot to 100, six tube profiles</td></tr>
+        <tr><td><code>harmonic</code></td><td>12,288</td><td>Superposed real spherical harmonics (l ≤ 7)</td></tr>
+        <tr><td><code>lissajous</code></td><td>21,952</td><td>Lissajous knots with frequencies 1–28</td></tr>
+        <tr><td><code>superquadric</code></td><td>3,200</td><td>Superellipsoids and supertoroids</td></tr>
+        <tr><td><code>shell</code>, <code>surface</code>, <code>polyhedron</code></td><td>1,408 · 12 · 180</td><td>Seashells, classic surfaces (Klein bottle, Boy's surface…), stellated polyhedra</td></tr>
+        <tr><td><code>polytope</code> (4D)</td><td>6</td><td>All regular convex 4-polytopes, up to the 120-cell</td></tr>
+        <tr><td><code>duoprism</code> (4D)</td><td>6,084</td><td>p-q duoprisms, 3 ≤ p, q ≤ 80</td></tr>
+        <tr><td><code>clifford</code> (4D)</td><td>3,600</td><td>Torus knots on the Clifford torus</td></tr>
+        <tr><td><code>hypershape</code> (4D)</td><td>8,000</td><td>Superformula on the 3-sphere</td></tr>
+      </table>
+      <pre><code>const m = get('knot/912');                    // { id, family, params, label }
+const mesh = engine.add(build(m.family.id, m.params));
+const tess = engine.add(build('polytope', { kind: 1 }));   // a Polytope4D
+engine.onFrame((t, dt) => tess.update(dt));   // rotate through 4D (tess.speeds.xw = 0.5 …)</code></pre>
+      <p>4D models are <code>Polytope4D</code> objects: vertices rotate in the six planes <code>xy xz xw yz yw zw</code> and are projected into 3D every frame. In the studio you can also write your own model in Pyre: <code>fn surface(u: float, v: float) -&gt; vec3</code>, or <code>surface4 -&gt; vec4</code> for 4D.</p>
+
       <h2 id="security">Security model</h2>
       <ul>
         <li><strong>Accounts.</strong> Passwords are hashed with scrypt (N=2<sup>15</sup>, r=8, p=1, random salt) and compared in constant time. Unknown users cost the same time as wrong passwords. Five failures lock an account for 15 minutes; auth endpoints are also rate limited per IP.</li>
@@ -196,7 +287,9 @@ while n < 100 and dot(z, z) < 4.0:
         <li><strong>Platform pages.</strong> Strict CSP (<code>script-src 'self'</code> plus the hash of the import map, no inline styles, no eval), <code>frame-ancestors 'none'</code>, COOP, CORP, nosniff, Referrer-Policy and Permissions-Policy. The only script allowed to evaluate generated code is the Pyre CPU worker, which has its own CSP with no network access.</li>
         <li><strong>Deployed sites.</strong> Every file is served with <code>Content-Security-Policy: sandbox …</code>, so deployed pages (and uploaded SVGs) run in an opaque origin: they cannot read platform cookies, call the authenticated API, or script the dashboard, even on the same host.</li>
         <li><strong>Uploads.</strong> Paths are validated (no traversal, absolute paths, backslashes, control characters or hidden files), sizes are capped, JSON bodies are size-limited, and storage is content-addressed.</li>
-        <li><strong>Functions.</strong> Pyre has no strings, I/O or recursion, and its JS output can only touch its own values. Kernels run in fresh worker threads with time, memory, loop and buffer limits.</li>
+        <li><strong>Functions.</strong> Pyre has no strings, I/O or recursion, and its JS output can only touch its own values. Kernels run in fresh worker threads with time, memory, loop and buffer limits. JS functions run in a fresh, permission-restricted child process with code generation disabled and a string-only bridge (see <a href="#js-functions">JS server functions</a>).</li>
+        <li><strong>Database.</strong> Per-collection rules, parameterised SQL with validated field names, size limits, rate limits per IP; private collections are never readable from deployed pages.</li>
+        <li><strong>Analytics.</strong> No cookies, no raw IPs; visitor hashes use a salt that rotates daily; 31-day retention.</li>
         <li><strong>Audit log.</strong> Sign-ins, failures, lockouts, tokens, projects and deployments are recorded per account (<em>Dashboard → Security</em>).</li>
       </ul>
 
@@ -208,11 +301,12 @@ PORT=3000 HOST=0.0.0.0 DATA_DIR=/var/lib/chroma npm start
       <table>
         <tr><th>Variable</th><th>Meaning</th></tr>
         <tr><td><code>PORT</code>, <code>HOST</code></td><td>Listen address (default <code>3000</code>, <code>127.0.0.1</code>)</td></tr>
-        <tr><td><code>DATA_DIR</code></td><td>Database (<code>db.json</code>, mode 600) and content-addressed files</td></tr>
+        <tr><td><code>DATA_DIR</code></td><td>Accounts (<code>db.json</code>, mode 600), SQLite (<code>chroma.sqlite</code>: analytics, databases, models) and content-addressed files</td></tr>
         <tr><td><code>CHROMA_HTTPS=1</code></td><td>Behind TLS: <code>Secure</code> cookies, HSTS, <code>upgrade-insecure-requests</code></td></tr>
         <tr><td><code>TRUST_PROXY=1</code></td><td>Use <code>X-Forwarded-For</code> for rate limits and the audit log (only behind a proxy you control)</td></tr>
         <tr><td><code>CHROMA_DOMAIN=example.com</code></td><td>Also serve projects at <code>&lt;project&gt;.example.com</code> (wildcard DNS + certificate)</td></tr>
         <tr><td><code>ALLOW_SIGNUP=0</code></td><td>Disable open registration</td></tr>
+        <tr><td><code>ALLOW_JS_FUNCTIONS=0</code></td><td>Disable <code>api/*.js</code> server functions</td></tr>
       </table>
       <p>Put Chroma behind a TLS-terminating reverse proxy (Caddy, nginx) and back up <code>DATA_DIR</code>.</p>
     </article>
