@@ -1,0 +1,9 @@
+# Deployed as POST /api/fn/<project>/saxpy
+# body: {"uniforms": {"a": 2}, "buffers": {"x": [1, 2], "y": [3, 4]}}
+uniform a: float
+buffer x: [float]
+buffer y: [float]
+
+@kernel(64)
+fn saxpy(id: int):
+    y[id] = a * x[id] + y[id]

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Playground · Chroma</title>
+<meta name="description" content="Write Pyre GPU code and see it live on 3D models. Compiles to GLSL, WGSL and JavaScript in your browser; runs compute kernels on WebGPU.">
+<script type="module" src="/assets/js/playground.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main" class="pg">
+  <div class="pg-col left">
+    <section class="panel" aria-label="Editor">
+      <div class="panel-head">
+        <label class="sr-only" for="example">Example</label>
+        <select id="example" class="btn small"></select>
+        <span class="spacer"></span>
+        <button class="btn small" id="share" title="Copy a link to this code">Share</button>
+        <button class="btn small" id="download" title="Download shader.pyre">Download</button>
+        <button class="btn small primary" id="deploy">Deploy</button>
+      </div>
+      <div id="editor"></div>
+      <div class="controls" id="controls" aria-label="Uniform controls"></div>
+      <div class="diag" id="diag" role="status" aria-live="polite">Compiling…</div>
+    </section>
+    <p class="small dim" id="keys">⌘/Ctrl + Enter compiles · Tab / Shift+Tab indent · ⌘/Ctrl + / comments · edits compile automatically</p>
+  </div>
+  <div class="pg-col right">
+    <section class="panel" aria-label="3D preview">
+      <div class="panel-head">
+        <label class="sr-only" for="model">Model</label>
+        <select id="model" class="btn small">
+          <option value="auto">Model: auto</option>
+          <option value="torusKnot">Torus knot</option>
+          <option value="sphere">Sphere</option>
+          <option value="helix">Helix</option>
+          <option value="torus">Torus</option>
+          <option value="box">Box</option>
+          <option value="icosahedron">Icosahedron</option>
+          <option value="crystal">Crystal</option>
+          <option value="plane">Flat (2D)</option>
+          <option value="glb">Load .glb…</option>
+        </select>
+        <button class="chip" id="bloom" aria-pressed="false">Bloom</button>
+        <button class="chip" id="spin" aria-pressed="true">Auto-rotate</button>
+        <span class="spacer"></span>
+        <span class="small dim" id="fps"></span>
+        <button class="btn small" id="shot" title="Save a PNG">Screenshot</button>
+      </div>
+      <div class="viewport" id="view">
+        <canvas aria-label="Live preview: drag to orbit, scroll to zoom"></canvas>
+        <div class="hud" id="kernel-hud" hidden></div>
+      </div>
+    </section>
+    <section class="panel" aria-label="Compiled output">
+      <div class="panel-head">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-out="glsl" aria-selected="true">GLSL</button>
+          <button class="tab" role="tab" data-out="wgsl" aria-selected="false">WGSL</button>
+          <button class="tab" role="tab" data-out="js" aria-selected="false">JS</button>
+          <button class="tab" role="tab" data-out="run" aria-selected="false" id="run-tab" hidden>Run kernel</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn small" id="copy-out">Copy</button>
+      </div>
+      <pre class="out" id="out"></pre>
+    </section>
+  </div>
+</main>
+<dialog id="deploy-dlg">
+  <form method="dialog" class="panel-body form" id="deploy-form">
+    <h3>Deploy this shader</h3>
+    <p class="small muted" id="deploy-help">Publishes a Helix page that renders your shader. You'll get a production URL you can share.</p>
+    <label>Project name<input id="deploy-name" required pattern="[a-z0-9]([a-z0-9\-]{0,38}[a-z0-9])?" maxlength="40" placeholder="my-shader" autocomplete="off"></label>
+    <div id="deploy-msg"></div>
+    <div class="row"><span class="spacer"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" id="deploy-go" value="go">Deploy</button></div>
+  </form>
+</dialog>
+</body>
+</html>

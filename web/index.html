@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--#head-->
+<title>Chroma — Deploy 3D for the web</title>
+<meta name="description" content="Chroma is a deploy platform, a 3D engine (Helix) and a GPU language (Pyre) in one Node.js package. Write shaders in Python-style Pyre, render with Helix, ship with one command.">
+<meta property="og:title" content="Chroma — Deploy 3D for the web">
+<meta property="og:description" content="Deploy platform + Helix 3D engine + Pyre GPU language, in one Node.js package.">
+<script type="module" src="/assets/js/landing.js"></script>
+</head>
+<body>
+<!--#nav-->
+<main id="main">
+  <section class="hero">
+    <canvas class="stage" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div class="hero-copy">
+        <a class="pill reveal" href="/docs#pyre"><b>NEW</b> Pyre 1.0 — GPU code in Python syntax →</a>
+        <h1 class="reveal d1">Build, shade &amp; ship <span class="grad">3D for the web.</span></h1>
+        <p class="lead reveal d2">Chroma is a deploy platform, a 3D engine and a GPU language in one Node.js package. Write shaders and compute kernels in <strong>Pyre</strong>, render them with <strong>Helix</strong>, and push to production with a single command.</p>
+        <div class="row reveal d3">
+          <a class="btn primary" href="/playground">Open the playground
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          <a class="btn" href="/dashboard#new">Deploy a 3D site</a>
+        </div>
+        <div class="install reveal d3" data-copy-root>
+          <code>npm i -g github:Tharunmaks/Chroma-node</code>
+          <button class="copy" data-copy>Copy</button>
+        </div>
+        <div class="hero-stats reveal d3">
+          <div><b>3</b>GPU targets: GLSL · WGSL · JS</div>
+          <div><b>1</b>command to deploy</div>
+          <div><b>0</b>pixels different, GPU vs CPU</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-hint" aria-hidden="true">Scroll<span></span></div>
+  </section>
+
+  <!-- Pyre -->
+  <section class="section" id="pyre">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow reveal">Pyre language</p>
+        <h2 class="title reveal">GPU code that reads like <span class="grad">Python.</span></h2>
+        <p class="lead reveal">Pyre is a typed shader &amp; compute language with indentation, type inference and friendly errors. One file compiles to GLSL for WebGL2, WGSL for WebGPU and JavaScript for Node — and the output matches pixel for pixel.</p>
+        <ul class="muted reveal" id="pyre-points">
+          <li>Types inferred, ints promoted to floats automatically</li>
+          <li><code>@fragment</code> shaders and <code>@kernel</code> compute in the same language</li>
+          <li>Standard library: noise, fbm, SDFs, palettes, rotations</li>
+          <li>Errors point at the column and suggest the fix</li>
+        </ul>
+        <p class="reveal"><a class="btn" href="/playground">Edit these shaders live →</a></p>
+      </div>
+      <div class="reveal d1">
+        <div class="viewport" id="pyre-view">
+          <canvas aria-label="Live Pyre shader preview"></canvas>
+          <span class="badge-live">LIVE · compiled in your browser</span>
+          <div class="hud" id="pyre-chips" role="group" aria-label="Shader"></div>
+        </div>
+        <div class="code" id="pyre-code">
+          <div class="code-head">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <div class="tabs" role="tablist" aria-label="Output">
+              <button class="tab" role="tab" data-out="pyre" aria-selected="true">shader.pyre</button>
+              <button class="tab" role="tab" data-out="glsl" aria-selected="false">GLSL</button>
+              <button class="tab" role="tab" data-out="wgsl" aria-selected="false">WGSL</button>
+            </div>
+          </div>
+          <pre class="src" id="pyre-src"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Helix -->
+  <section class="section" id="helix">
+    <div class="wrap split flip">
+      <div class="reveal">
+        <div class="viewport" id="helix-view">
+          <canvas aria-label="Helix 3D model viewer — drag to orbit"></canvas>
+          <span class="badge-live">Drag to orbit · drop a .glb</span>
+          <div class="hud" id="helix-chips" role="group" aria-label="Model"></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow reveal">Helix engine</p>
+        <h2 class="title reveal">A 3D engine where <span class="grad">materials are code.</span></h2>
+        <p class="lead reveal">Helix wraps Three.js with the parts you actually want: live Pyre materials, glTF loading, bloom, orbit controls, auto-resize, and render-only-when-visible. Your deployed sites can import it directly.</p>
+        <div class="code reveal d1">
+          <div class="code-head"><span class="dots"><i></i><i></i><i></i></span>scene.js</div>
+<pre class="src"><span class="k">import</span> { Helix, Models } <span class="k">from</span> <span class="s">'helix'</span>;
+
+<span class="k">const</span> engine = <span class="k">new</span> <span class="f">Helix</span>(canvas, { bloom: <span class="k">true</span> });
+<span class="k">const</span> lava = engine.<span class="f">material</span>(<span class="k">await</span> <span class="f">fetch</span>(<span class="s">'lava.pyre'</span>).<span class="f">then</span>(r =&gt; r.<span class="f">text</span>()));
+engine.<span class="f">add</span>(engine.<span class="f">mesh</span>(Models.<span class="f">torusKnot</span>(), lava));
+engine.<span class="f">add</span>(<span class="k">await</span> engine.<span class="f">load</span>(<span class="s">'robot.glb'</span>));
+engine.<span class="f">start</span>();</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Deploy -->
+  <section class="section" id="deploy">
+    <div class="wrap">
+      <div class="center">
+        <p class="eyebrow reveal">Deployments</p>
+        <h2 class="title reveal">From folder to URL in <span class="grad">one command.</span></h2>
+        <p class="lead reveal">Every deploy is an immutable, content-addressed snapshot with its own preview URL. Pyre files are compiled at build time; a failing shader fails the build, not your users. Promote or roll back instantly.</p>
+      </div>
+      <div class="split">
+        <div class="code terminal reveal" id="term">
+          <div class="code-head"><span class="dots"><i></i><i></i><i></i></span>~/my-site — zsh</div>
+          <pre aria-live="off"></pre>
+        </div>
+        <div class="grid reveal d1">
+          <div class="card glow tilt"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg></div><h3>Upload &amp; dedupe</h3><p>Files are stored once by SHA-256, so redeploys only cost what changed.</p></div>
+          <div class="card glow tilt"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></div><h3>Pyre build step</h3><p><code>.pyre</code> files become <code>.glsl</code>, <code>.wgsl</code> and metadata. Kernels in <code>api/</code> become HTTP functions.</p></div>
+          <div class="card glow tilt"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></div><h3>Instant rollback</h3><p>Production is a pointer. Move it to any previous deployment in one click or <code>chroma promote</code>.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Functions -->
+  <section class="section tight" id="functions">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow reveal">Pyre Functions</p>
+        <h2 class="title reveal">GPU-style kernels, <span class="grad">served over HTTP.</span></h2>
+        <p class="lead reveal">Put a <code>@kernel</code> in <code>api/</code> and it becomes an endpoint. Each call runs in an isolated worker with a time limit, a memory cap and a loop budget, so untrusted code can't take the server down.</p>
+      </div>
+      <div class="code reveal d1">
+        <div class="code-head"><span class="dots"><i></i><i></i><i></i></span>api/saxpy.pyre → POST /api/fn/my-site/saxpy</div>
+<pre class="src"><span class="c"># api/saxpy.pyre</span>
+<span class="k">uniform</span> a: <span class="ty">float</span>
+<span class="k">buffer</span> x: [<span class="ty">float</span>]
+<span class="k">buffer</span> y: [<span class="ty">float</span>]
+
+<span class="d">@kernel</span>(<span class="n">64</span>)
+<span class="k">fn</span> <span class="f">saxpy</span>(id: <span class="ty">int</span>):
+    y[id] = a * x[id] + y[id]
+
+<span class="c">$ curl -X POST localhost:3000/api/fn/my-site/saxpy \
+    -H 'content-type: application/json' \
+    -d '{"uniforms":{"a":2},"buffers":{"x":[1,2,3],"y":[10,10,10]}}'</span>
+{ <span class="s">"buffers"</span>: { <span class="s">"x"</span>: [1,2,3], <span class="s">"y"</span>: [<span class="n">12</span>,<span class="n">14</span>,<span class="n">16</span>] }, <span class="s">"ms"</span>: 0.4 }</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security -->
+  <section class="section" id="security">
+    <div class="wrap">
+      <div class="center">
+        <p class="eyebrow reveal">Security</p>
+        <h2 class="title reveal">Secure by default, <span class="grad">not by checklist.</span></h2>
+        <p class="lead reveal">Chroma runs untrusted sites and untrusted GPU code next to your account. Every layer below is on out of the box and covered by tests.</p>
+      </div>
+      <div class="grid cols-3" id="sec-grid">
+        <div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>scrypt passwords</h3><p>Salted scrypt hashes, constant-time checks, account lockout after repeated failures and per-IP rate limits.</p></div>
+        <div class="card reveal d1"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div><h3>Sandboxed deployments</h3><p>Every deployed file is served with a CSP sandbox, giving it an opaque origin: user sites can't read your session or call your API.</p></div>
+        <div class="card reveal d2"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M17 15l3 3-3 3"/></svg></div><h3>Strict CSP everywhere</h3><p>No inline scripts except hashed import maps, <code>frame-ancestors 'none'</code>, HSTS, COOP and nosniff on every page.</p></div>
+        <div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Isolated functions</h3><p>Kernels run in fresh worker threads with wall-clock timeouts, memory limits, bounds-checked buffers and a loop budget.</p></div>
+        <div class="card reveal d1"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 5-4 9-9 9s-9-4-9-9 4-9 9-9c2 0 4 .7 5.6 1.8"/></svg></div><h3>CSRF &amp; session safety</h3><p>HttpOnly, SameSite=Strict cookies, per-session CSRF tokens, Origin checks; only hashes of sessions and API tokens are stored.</p></div>
+        <div class="card reveal d2"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M7 12h10M10 18h4"/></svg></div><h3>Hardened uploads</h3><p>Path traversal, hidden files, control characters and oversized uploads are rejected; everything is audited per account.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section tight">
+    <div class="wrap">
+      <div class="cta reveal">
+        <h2>Your first 3D site, <span class="grad">live in a minute.</span></h2>
+        <p class="lead">Install the CLI, scaffold the Helix starter, and deploy it to your own Chroma server.</p>
+        <div class="steps-list">
+          <div class="install" data-copy-root><code>npm i -g github:Tharunmaks/Chroma-node</code><button class="copy" data-copy>Copy</button></div>
+          <div class="install" data-copy-root><code>chroma init my-site &amp;&amp; cd my-site &amp;&amp; chroma dev</code><button class="copy" data-copy>Copy</button></div>
+          <div class="install" data-copy-root><code>chroma login &amp;&amp; chroma deploy</code><button class="copy" data-copy>Copy</button></div>
+        </div>
+        <div class="row" id="cta-row">
+          <a class="btn primary" href="/dashboard#new">Create a free account</a>
+          <a class="btn" href="/docs">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<!--#footer-->
+</body>
+</html>

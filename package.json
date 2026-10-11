@@ -1,0 +1,20 @@
+{
+  "name": "chroma-node",
+  "version": "1.0.0",
+  "description": "Chroma: deploy platform + Helix 3D engine + Pyre GPU language, in one Node.js package.",
+  "type": "module",
+  "main": "./server/index.js",
+  "bin": { "chroma": "./bin/chroma.js" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "pyre-lang": "github:Tharunmaks/Pyre#claude/website-polish-3d-cmjt9f",
+    "three": "0.170.0"
+  },
+  "repository": { "type": "git", "url": "git+https://github.com/Tharunmaks/Chroma-node.git" },
+  "license": "MIT"
+}

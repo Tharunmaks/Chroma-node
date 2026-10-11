@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Helix site</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+    "three": "/vendor/three/three.module.js",
+    "three/addons/": "/vendor/three/addons/",
+    "pyre": "/vendor/pyre/index.js",
+    "helix": "/assets/js/helix/helix.js"
+} }
+</script>
+<script type="module" src="scene.js"></script>
+</head>
+<body>
+  <canvas id="scene" aria-label="A molten planet"></canvas>
+  <main>
+    <h1>Hello, <span>3D web</span>.</h1>
+    <p>This planet is a Pyre shader (<code>shaders/lava.pyre</code>) rendered by the Helix engine. Edit it and redeploy.</p>
+    <button id="run">Run the Pyre Function</button>
+    <pre id="out" aria-live="polite"></pre>
+  </main>
+</body>
+</html>
