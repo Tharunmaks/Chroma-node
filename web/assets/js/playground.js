@@ -259,7 +259,7 @@ function renderOut() {
 $('#copy-out').addEventListener('click', (e) => copyText($('#out').textContent, e.currentTarget));
 
 // ---------- CPU worker (runs generated JS outside the page) ----------
-const worker = new Worker('/assets/js/pyre-worker.js', { type: 'module' });
+const worker = new Worker(new URL('./pyre-worker.js', import.meta.url), { type: 'module' });
 let seq = 0;
 const pending = new Map();
 worker.onmessage = ({ data }) => {

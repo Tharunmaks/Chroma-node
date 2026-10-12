@@ -2,7 +2,7 @@
 // with its own CSP (script-src 'self' 'unsafe-eval', no network), so the
 // page itself keeps a strict no-eval policy while generated code runs here,
 // isolated from the DOM, cookies and the network.
-import { createProgram } from '/vendor/pyre/index.js';
+import { createProgram } from '../../vendor/pyre/index.js';
 
 const programs = new Map();
 const plain = (buffers) => Object.fromEntries(Object.entries(buffers).map(([k, v]) => [k, Array.from(v)]));

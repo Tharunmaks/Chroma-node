@@ -12,7 +12,9 @@
 
 <img src="docs/screenshots/hero.gif" alt="Chroma's landing page: an iridescent torus knot made with a Pyre shader, a DNA helix and orbiting crystals" width="800">
 
-[**Quick start**](#quick-start) · [What's inside](#whats-inside) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Pyre language](https://github.com/Tharunmaks/Pyre)
+[**Live demo**](https://tharunmaks.github.io/Chroma-node/) · [**Quick start**](#quick-start) · [What's inside](#whats-inside) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Pyre language](https://github.com/Tharunmaks/Pyre)
+
+**▶ Try it in your browser: [tharunmaks.github.io/Chroma-node](https://tharunmaks.github.io/Chroma-node/)** — the model library, Studio, Playground, Pyre Torch notebook and Helix engine all run with no install. Accounts, deploys, the database and analytics need your own server (one `npm install`).
 
 </div>
 

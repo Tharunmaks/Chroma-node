@@ -516,3 +516,9 @@ a.chip { text-decoration: none; }
 a.feature { text-decoration: none; color: inherit; transition: border-color .2s, transform .2s; }
 a.feature:hover { border-color: var(--line-2); transform: translateY(-2px); }
 #models .row:last-child { margin-top: 22px; }
+
+/* ---------- static demo ribbon ---------- */
+.demo-ribbon { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 60; display: flex; gap: 10px; align-items: center; padding: 8px 10px 8px 14px; border-radius: 999px; background: rgba(13, 13, 22, 0.9); border: 1px solid var(--line-2); font-size: 13px; color: var(--muted); backdrop-filter: blur(10px); box-shadow: var(--shadow); max-width: calc(100% - 24px); }
+.demo-ribbon b { color: var(--text); }
+.demo-ribbon a { white-space: nowrap; }
+.demo-ribbon button { background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 16px; }

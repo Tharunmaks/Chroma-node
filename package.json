@@ -1,7 +1,7 @@
 {
   "name": "chroma-node",
   "version": "1.1.0",
-  "description": "Self-hosted deploy platform with a 3D engine (124k procedural 3D/4D models), realtime database, sandboxed functions and live analytics \u2014 one Node.js package.",
+  "description": "Self-hosted deploy platform with a 3D engine (124k procedural 3D/4D models), realtime database, sandboxed functions and live analytics — one Node.js package.",
   "type": "module",
   "main": "./server/index.js",
   "bin": {
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:demo": "node scripts/export-static.mjs dist --base=/Chroma-node/"
   },
   "engines": {
     "node": ">=22.5"

@@ -80,7 +80,12 @@ export function highlightC(src) {
 let csrf = null;
 let mePromise = null;
 
+/** True on the static demo build (GitHub Pages), where there is no server. */
+export const DEMO = typeof document !== 'undefined' && !!document.querySelector('meta[name="chroma-demo"]');
+export const DEMO_MESSAGE = 'This is the static live demo. Accounts, deploys, the database and analytics need a Chroma server: git clone https://github.com/Tharunmaks/Chroma-node && npm install && npm start';
+
 export function me(force = false) {
+  if (DEMO) return Promise.resolve({ user: null, demo: true });
   if (!mePromise || force) {
     mePromise = fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => {
       csrf = d.csrf || null;
@@ -93,6 +98,7 @@ export function me(force = false) {
 export function setCsrf(token) { csrf = token; }
 
 export async function api(method, path, body) {
+  if (DEMO) throw Object.assign(new Error(DEMO_MESSAGE), { status: 0, demo: true });
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET' && csrf) headers['X-CSRF-Token'] = csrf;

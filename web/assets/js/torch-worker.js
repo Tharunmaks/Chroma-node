@@ -1,7 +1,7 @@
 // Notebook kernel for Pyre Torch. Runs cells off the main thread; served
 // with a CSP that allows evaluating code but no network access, so a
 // notebook can compute anything and exfiltrate nothing.
-import torch from '/vendor/pyre/torch/index.js';
+import torch from '../../vendor/pyre/torch/index.js';
 
 const fmt = (v) => {
   if (v instanceof torch.Tensor) return String(v);

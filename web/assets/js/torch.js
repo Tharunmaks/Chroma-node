@@ -79,7 +79,7 @@ const running = new Set();
 
 function startKernel() {
   worker?.terminate();
-  worker = new Worker('/assets/js/torch-worker.js', { type: 'module' });
+  worker = new Worker(new URL('./torch-worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = ({ data }) => {
     const cell = cells.find((c) => c.id === data.cell);
     if (!cell) return;

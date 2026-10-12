@@ -1,7 +1,7 @@
 // Dashboard: sign in / sign up, projects, deployments (drag-and-drop folder
 // upload, promote, rollback, logs), API tokens and security settings.
 // All user-controlled text is inserted with textContent (via h()), never HTML.
-import { $, h, api, me, setCsrf, toast, copyText } from './common.js';
+import { $, h, api, me, setCsrf, toast, copyText, DEMO } from './common.js';
 import { lineChart, barList } from './charts.js';
 
 const app = $('#app');
@@ -586,7 +586,18 @@ async function securityView() {
 }
 
 // ---------------- boot ----------------
+function renderDemo() {
+  app.replaceChildren(h('div', { class: 'panel auth-box' }, h('div', { class: 'panel-body form' },
+    h('h1', { class: 'title' }, 'Run your own Chroma'),
+    h('p', { class: 'muted' }, 'You are on the static live demo. The models, studio, playground, Torch notebook and engine all work here. Accounts, deploys, the realtime database, server functions and live analytics need a Chroma server — it takes a minute:'),
+    h('pre', { class: 'log' }, `git clone https://github.com/Tharunmaks/Chroma-node
+cd Chroma-node && npm install && npm start
+# open http://127.0.0.1:3000/dashboard`),
+    h('div', { class: 'row' }, h('a', { class: 'btn primary', href: 'https://github.com/Tharunmaks/Chroma-node' }, 'Get it on GitHub'), h('a', { class: 'btn', href: '../docs/#selfhost' }, 'Self-hosting guide')))));
+}
+
 async function start() {
+  if (DEMO) return renderDemo();
   const d = await me(true);
   if (!d.user) return renderAuth(d.signup);
   user = d.user;

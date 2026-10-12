@@ -76,7 +76,7 @@ engine.onFrame((t, dt) => {
 engine.start();
 
 // ---------- worker for Pyre-defined models ----------
-const worker = new Worker('/assets/js/pyre-worker.js', { type: 'module' });
+const worker = new Worker(new URL('./pyre-worker.js', import.meta.url), { type: 'module' });
 let seq = 0;
 const pending = new Map();
 worker.onmessage = ({ data }) => { const p = pending.get(data.id); if (!p) return; pending.delete(data.id); data.ok ? p.resolve(data) : p.reject(new Error(data.error)); };

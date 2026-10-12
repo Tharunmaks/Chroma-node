@@ -1,0 +1,57 @@
+name: Deploy live demo to GitHub Pages
+
+# Builds the static, server-free live demo (scripts/export-static.mjs) and
+# publishes it to GitHub Pages. Everything that runs in the browser works:
+# the model library, Studio, Playground, the Pyre Torch notebook and the
+# Helix engine. Server features (accounts, deploys, database, analytics)
+# show a "run your own Chroma" note.
+#
+# One-time setup: repo Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". Then every push to the default branch redeploys.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer pushes cancel in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build static demo
+        run: node scripts/export-static.mjs dist --base=/${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
